@@ -1,0 +1,360 @@
+# Importação da planilha do FBSP
+
+Especificação do comando `importar_anuario`: o que se extrai de `dados/brutos/anuario-2026.xlsx` (20º Anuário, FBSP 2026) e das estimativas do IBGE (`POP2024_20241230.ods`, `POP2025_20260828.ods`), como cada tabela é lida e como os dados são gravados.
+
+Mapeamento levantado na planilha versionada (SHA-256 `6b01f4ed…784f21`). Se o hash mudar, rode `inspecionar_planilha` e confira este documento antes de importar.
+
+---
+
+## 1. Estrutura da planilha
+
+A planilha tem 134 abas. Os nomes seguem um prefixo:
+
+| Prefixo | Conteúdo | Importação |
+| :--- | :--- | :--- |
+| `T01`…`T95` | Tabelas por UF (cabeçalho em 2 a 4 níveis, células mescladas) | Só as listadas na seção 3 |
+| `P01`…`P11` | Painéis: blocos de dados de gráficos, sem cabeçalho tabular | Não (ver Pendência 2 no CLAUDE.md) |
+| `G..` | Gráficos | Não |
+| `Q..` | Quadros (rankings municipais etc.) | Não |
+| `Índice` | Índice da publicação | Não |
+
+Padrão das tabelas por UF (verificado em T01–T21):
+
+- Linha 1: `TABELA nn`; linha 2: título; linha 3: abrangência e período.
+- Linha 5: âncora na coluna A (`Brasil e Unidades da Federação` ou `Brasil, Regiões e Unidades da Federação`; às vezes com espaço inicial).
+- Linhas seguintes do cabeçalho:
+  - bloco (indicador ou recorte);
+  - sub-bloco (ex.: `Nº de Vítimas`);
+  - grupo: `Ns. Absolutos`, `Taxa (n)` / `Taxas (n)`, `Variação (%)` (às vezes com quebra de linha);
+  - ano: inteiro ou texto com marca, ex. `2024 (3)`.
+- Dados: `Brasil` primeiro, depois as UFs em ordem alfabética. Na T02, regiões (`Região Norte`, …) aparecem seguidas de suas UFs, com **linhas em branco entre os grupos**.
+- Rodapé: uma linha `Fonte: …` (na T15 o prefixo vem duplicado, `Fonte: Fonte: …`), depois a legenda (`(-) Fenômeno Inexistente.`, `(...) Informação não disponível.`) e as notas numeradas `(1) …`, `(2) …`.
+- Marcas de nota aparecem no rótulo da linha (`Minas Gerais (4)`), no grupo (`Taxa (2)`) e no ano (`2024 (3)`).
+- Valores numéricos vêm como `int` ou `float`. Taxas e variações **não são arredondadas** (ex.: `19.105426800076884`).
+- Textos encontrados nas áreas de dados: apenas `-` e `...`. Não há células vazias nas tabelas importadas.
+
+---
+
+## 2. Indicadores (`catalogo/referencia.py`)
+
+| Slug | Nome | Pai | Unidade | Base da taxa | Tabela dona |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `mvi` | Mortes Violentas Intencionais | — | vítimas | 100 mil habitantes | T02 |
+| `homicidio-doloso` | Homicídio doloso | `mvi` | vítimas | 100 mil habitantes | T03 |
+| `homicidio-mulheres` | Homicídio de mulheres (incluindo feminicídios) | `homicidio-doloso` | vítimas | 100 mil mulheres | T21 *(pendência 3)* |
+| `feminicidio` | Feminicídio | `homicidio-doloso` | vítimas | 100 mil mulheres | T21 |
+| `latrocinio` | Latrocínio | `mvi` | vítimas | 100 mil habitantes | T04 |
+| `lesao-corporal-seguida-de-morte` | Lesão corporal seguida de morte | `mvi` | vítimas | 100 mil habitantes | T05 |
+| `morte-intervencao-policial` | Morte decorrente de intervenção policial | `mvi` | vítimas | 100 mil habitantes | T08 |
+| `roubo` | Roubo (total) | — | ocorrências | 100 mil habitantes | T15 |
+| `roubo-veiculo` | Roubo de veículo | `roubo` | ocorrências | 100 mil veículos | T11 |
+| `roubo-celular` | Roubo de celular | `roubo` | ocorrências | 100 mil habitantes | T12 |
+| `roubo-transeunte` | Roubo a transeunte | `roubo` | ocorrências | 100 mil habitantes | T14 |
+| `roubo-residencia` | Roubo a residência | `roubo` | ocorrências | 100 mil habitantes | T14 |
+| `roubo-estabelecimento-comercial` | Roubo a estabelecimento comercial | `roubo` | ocorrências | 100 mil habitantes | T14 |
+| `roubo-instituicao-financeira` | Roubo a instituição financeira | `roubo` | ocorrências | 100 instituições | T15 |
+| `roubo-carga` | Roubo de carga | `roubo` | ocorrências | 100 mil habitantes | T15 |
+| `furto` | Furto | — | ocorrências | — | **sem registros** |
+| `furto-veiculo` | Furto de veículo | `furto` | ocorrências | 100 mil veículos | T11 |
+| `furto-celular` | Furto de celular | `furto` | ocorrências | 100 mil habitantes | T12 |
+
+Fontes (`FONTES`):
+- **Registros:** "Secretarias Estaduais de Segurança Pública e/ou Defesa Social", com compilação do FBSP. A linha "Fonte:" completa de cada tabela fica em `docs/` e no relatório, não em cada registro.
+- **Bases de taxa:** IBGE (população; projeções por sexo para a base de mulheres), Senatran (frota de veículos) e Banco Central (instituições financeiras), ligadas aos indicadores pela `base_taxa`.
+
+---
+
+## 3. Mapeamento por tabela
+
+Linhas e colunas abaixo são as observadas hoje, para conferência. **O código não usa posições fixas**: localiza a âncora e resolve cada coluna pelo caminho do cabeçalho (seção 4.2).
+
+### T02 — Série histórica de MVI (dona de `mvi`)
+- Cabeçalho nas linhas 5–7; dados nas linhas 9–46, com 33 localidades (Brasil, 5 regiões e 27 UFs).
+- `B:O` → `valor` de 2012 a 2025; `P:AC` → `taxa_publicada` de 2012 a 2025 (por 100 mil habitantes).
+- Gera 33 × 14 = **462** registros.
+
+### T01 — MVI 2024–2025 (só conferência)
+- `L:M` (valor) e `N:O` (taxa) de MVI. Hoje são idênticos à T02 em todas as 28 localidades.
+- Os outros blocos (CVLI, policiais vítimas, MDIP) não são lidos: têm tabelas próprias.
+- Divergência T01 × T02 entra no relatório como **divergência**.
+
+### T03, T04, T05 — Homicídio doloso, latrocínio, lesão corporal seguida de morte
+- Cabeçalho nas linhas 5–8; dados nas linhas 10–38 (28 localidades).
+- Sub-bloco `Nº de Vítimas`: `B:C` → valor 2024/2025; `D:E` → taxa 2024/2025; `F` → variação (só validação).
+- Sub-bloco `Nº de Ocorrências` (`G:K`): **não importado** (pendência 1).
+- Gera 3 × 56 = **168** registros.
+
+### T08 — Mortes decorrentes de intervenção policial
+- Cabeçalho nas linhas 5–7; dados nas linhas 9–37.
+- Colunas e recortes:
+
+| Colunas | Bloco | Recorte | Grava |
+| :--- | :--- | :--- | :--- |
+| `B:C` | Intervenções de Policiais Civis em serviço | `corporacao=Polícia Civil; situacao_policial=Em serviço` | valor |
+| `D:E` | Intervenções de Policiais Militares em serviço | `corporacao=Polícia Militar; situacao_policial=Em serviço` | valor |
+| `F:G` | Intervenções de Policiais Civis fora de serviço | `corporacao=Polícia Civil; situacao_policial=Fora de serviço` | valor |
+| `H:I` | Intervenções de Policiais Militares fora de serviço | `corporacao=Polícia Militar; situacao_policial=Fora de serviço` | valor |
+| `J:K` + `L:M` | Total | sem recorte | valor + taxa |
+
+- A soma dos recortes pode não bater com o total: há "..." e mortes em operações conjuntas (nota 5, Sergipe). A comparação entra no relatório como **informação**.
+- Gera 56 (total) + 4 × 56 (recortes) = **280** registros.
+
+### T11 — Roubo e furto de veículos
+- `B:C`/`D:E` → `roubo-veiculo`; `G:H`/`I:J` → `furto-veiculo`. Taxa por 100 mil veículos (Senatran, nota 2).
+- O bloco `Roubo e Furto de Veículo` (`L:P`) **não é importado** (regra 5).
+- Gera **112** registros.
+
+### T12 — Roubo e furto de celulares (ocorrências)
+- `B:C`/`D:E` → `roubo-celular`; `G:H`/`I:J` → `furto-celular`. Taxa por 100 mil habitantes.
+- O bloco combinado `L:P` **não é importado**. A T13 (quantidade de aparelhos) também não.
+- Gera **112** registros.
+
+### T14 — Roubo a estabelecimento comercial, residência e transeunte
+- `B:C`/`D:E` → `roubo-estabelecimento-comercial`; `G:H`/`I:J` → `roubo-residencia`; `L:M`/`N:O` → `roubo-transeunte`.
+- Gera **168** registros.
+
+### T15 — Roubo a instituição financeira, de carga e total
+- `B:C`/`D:E` → `roubo-instituicao-financeira` (taxa por 100 instituições, Banco Central, nota 3).
+- `G:H`/`I:J` → `roubo-carga`.
+- `L:M`/`N:O` → `roubo`. Nota 1: o total pode ser menor que a soma dos subtipos, e por isso o total é importado, nunca somado.
+- Gera **168** registros.
+
+### T21 — Homicídio de mulheres e feminicídio
+- Cabeçalho nas linhas 5–8; dados nas linhas 10–38.
+- `B:C`/`D:E` → `homicidio-mulheres`; `G:H`/`I:J` → `feminicidio`. Taxa por 100 mil mulheres (nota 2).
+- A coluna de proporção (`L:M`, percentual) **não é importada** (pendência 6).
+- Gera **112** registros.
+
+### Totais esperados
+
+| Item | Quantidade |
+| :--- | ---: |
+| Registros (`REGISTROS_ANUAIS`) | **1.582** |
+| Recortes (`RECORTES`) | 4 |
+| População (`POPULACAO`) | 66 (33 localidades × 2 anos) |
+
+---
+
+## 4. Algoritmo
+
+### 4.1 Fluxo do comando
+
+```
+importar_anuario [--dados DIR] [--relatorio DIR] [--somente-validar] [--estrito]
+│
+├─ 1. verificar_hashes(DIR)                   → compara com dados/README.md; diverge → CommandError
+├─ 2. versao = sha256(concat(hashes))[:12]
+├─ 3. carga = Carga(versao, status="em_andamento")
+├─ 4. with transaction.atomic():
+│     ├─ carregar_referencias()                 # regiões, UFs, fontes, indicadores (update_or_create)
+│     ├─ populacao = ibge.ler(DIR)              # {(localidade, ano): Decimal}; 66 linhas
+│     ├─ gravar_populacao(populacao)
+│     ├─ linhas = [l for t in TABELAS for l in fbsp.ler_tabela(wb, t)]
+│     ├─ verificar_chaves_unicas(linhas)        # mesma chave vinda de duas tabelas donas → erro
+│     ├─ relatorio = validacao.gerar(linhas, populacao, conferencias=fbsp.ler_conferencias(wb))
+│     ├─ if --somente-validar: desfaz a transação (transaction.set_rollback(True))
+│     ├─ gravacao.upsert(linhas)
+│     └─ carga.concluir(total=len(linhas))
+├─ 5. relatorio.salvar(--relatorio, versao)
+└─ 6. if --estrito and relatorio.tem_divergencias: CommandError (código ≠ 0)
+```
+
+Qualquer exceção desfaz a transação inteira, e a carga anterior continua valendo.
+
+### 4.2 Especificação declarativa (`mapeamento.py`)
+
+Cada coluna é identificada pelo seu **caminho de cabeçalho**: a lista de textos das linhas de cabeçalho acima dela, com as células mescladas expandidas. Exemplo da coluna `D` da T03:
+
+```
+("Homicídios dolosos", "Nº de Vítimas", "Taxas (2)", "2024 (3)")
+```
+
+```python
+@dataclass(frozen=True)
+class Bloco:
+    indicador: str                              # slug
+    caminho: tuple[str, ...]                    # regexes que precisam casar, em ordem, com o caminho
+    recorte: tuple[tuple[str, str], ...] = ()   # pares (dimensao, valor); vazio = total
+    grupos: frozenset[str] = frozenset({"valor", "taxa"})
+
+@dataclass(frozen=True)
+class Tabela:
+    aba: str
+    ancora: str                                 # regex do rótulo da coluna A que abre o cabeçalho
+    linhas_cabecalho: int                       # níveis abaixo da âncora, inclusive
+    blocos: tuple[Bloco, ...]
+    anos: tuple[int, ...]
+    localidades_esperadas: int                  # 28 ou 33
+    conferencia: bool = False                   # True = só alimenta o relatório (T01)
+
+GRUPOS = {r"^ns\.? absolutos|^n[úu]mero absoluto": "valor",
+          r"^taxas?\b": "taxa",
+          r"^varia[çc][ãa]o": "variacao"}
+
+TABELAS = (
+    Tabela(
+        aba="T02", ancora=r"^\s*Brasil, Regi[õo]es e Unidades", linhas_cabecalho=3,
+        blocos=(Bloco("mvi", (r"Mortes Violentas Intencionais",)),),
+        anos=tuple(range(2012, 2026)), localidades_esperadas=33,
+    ),
+    Tabela(
+        aba="T03", ancora=r"^\s*Brasil e Unidades", linhas_cabecalho=4,
+        blocos=(Bloco("homicidio-doloso", (r"Homic[íi]dios dolosos", r"V[íi]timas")),),
+        anos=(2024, 2025), localidades_esperadas=28,
+    ),
+    Tabela(
+        aba="T08", ancora=r"^\s*Brasil e Unidades", linhas_cabecalho=3,
+        blocos=(
+            Bloco("morte-intervencao-policial", (r"Policiais Civis em servi[çc]o",),
+                  recorte=(("corporacao", "Polícia Civil"), ("situacao_policial", "Em serviço")),
+                  grupos=frozenset({"valor"})),
+            # ... PM em serviço, PC fora, PM fora
+            Bloco("morte-intervencao-policial", (r"^Total$",)),
+        ),
+        anos=(2024, 2025), localidades_esperadas=28,
+    ),
+    # T04, T05, T11, T12, T14, T15, T21 e T01 (conferencia=True) — ver seção 3
+)
+```
+
+Regras:
+- Nenhuma posição fixa de linha ou coluna. Mudou o layout? O teste contra a planilha real quebra e aponta a tabela.
+- Toda coluna dentro da largura do cabeçalho precisa casar com exatamente um bloco **ou** estar listada como ignorada (`ignorar=(r"Ocorr[êe]ncias", r"Roubo e Furto")`). Uma coluna órfã aborta a importação.
+- Todo slug usado precisa existir em `catalogo/referencia.py` (há teste para isso).
+
+### 4.3 Leitura de uma tabela
+
+```python
+def ler_tabela(wb, t: Tabela) -> list[Linha]:
+    ws = wb[t.aba]                                    # load_workbook(data_only=True), sem read_only: precisa de merged_cells
+    grade = expandir_mescladas(ws)                    # valor da célula superior esquerda replicado no intervalo
+    r_ancora = achar_ancora(grade, t.ancora)          # 1ª linha cuja coluna A casa a regex
+    colunas = resolver_colunas(grade, r_ancora, t)    # {col: (bloco, grupo, ano, marcas)}; órfã → erro
+    notas = ler_notas(grade)                          # {"3": "Atualização das informações ..."}
+    linhas: dict[Chave, Linha] = {}
+    for r in range(r_ancora + t.linhas_cabecalho, grade.max_row + 1):
+        rotulo = grade[r][0]
+        if vazio(rotulo):
+            continue                                  # T02 tem linhas em branco entre regiões
+        if re.match(r"^\s*Fonte:", str(rotulo)):
+            break                                     # fim da área de dados
+        nome, marcas_linha = separar_marcas(rotulo)   # "Minas Gerais (4)" → ("Minas Gerais", ["4"])
+        localidade = resolver_localidade(nome)        # desconhecida → ErroImportacao(aba, r)
+        for col, (bloco, grupo, ano, marcas_col) in colunas.items():
+            if grupo == "variacao":
+                continue                              # vai para a validação, não para o banco
+            celula = normalizar_celula(grade[r][col])
+            linha = linhas.setdefault(Chave(localidade, bloco.indicador, bloco.recorte, ano), Linha(...))
+            if grupo == "valor":
+                linha.valor, linha.situacao = celula.valor, celula.situacao
+                linha.origem = f"{t.aba}!{coord(r, col)}"
+            else:
+                linha.taxa_publicada = celula.valor
+            linha.marcas |= set(marcas_linha + marcas_col)
+    for linha in linhas.values():
+        linha.observacao = juntar_notas(notas, linha.marcas, ignorar=NOTAS_GENERICAS)
+    conferir_contagem(linhas, t)                      # localidades × anos × blocos
+    return list(linhas.values())
+```
+
+`resolver_colunas`:
+- Monta o caminho de cada coluna nas `linhas_cabecalho` abaixo da âncora (inclusive).
+- Classifica o grupo pelo penúltimo nível com `GRUPOS`.
+- Extrai o ano do último nível com `^(\d{4})`; o restante do texto vira marca (`"2024 (3)"` → `2024`, `["3"]`).
+- Também extrai marcas do grupo (`"Taxa (2)"` → `["2"]`).
+- Confere a base da taxa pela nota do grupo: a nota `(2)` precisa casar com a `base_taxa` do indicador (`100 mil habitantes`, `100 mil mulheres`, `100 mil veículos`, `100 instituições`). Base diferente aborta a importação; é a proteção contra blocos trocados entre edições.
+
+`NOTAS_GENERICAS`: notas que não descrevem o dado e não vão para `observacao`, como "Taxa por 100 mil habitantes". A nota "Atualização das informações publicadas no Anuário…" **vai**, porque informa que o valor de 2024 foi revisado (RF11).
+
+### 4.4 Normalização de célula
+
+Já implementada em `apps/importacao/normalizacao.py` (`normalizar_celula`):
+
+| Conteúdo | `valor` | `situacao` |
+| :--- | :--- | :--- |
+| `int` / `float` | `Decimal(str(v))` | `informado` |
+| `-`, `–`, `—` | `0` | `inexistente` |
+| `...`, `…` | `NULL` | `nao_disponivel` |
+| vazio / `None` / NaN | `NULL` | `nao_disponivel` + aviso no relatório |
+| qualquer outro texto | — | `ValueError` → aborta com a coordenada |
+
+Taxa com `-` grava `taxa_publicada = 0`; com `...`, `NULL`.
+
+### 4.5 Localidades
+
+```python
+def chave(nome: str) -> str:
+    sem_acento = unicodedata.normalize("NFKD", nome).encode("ascii", "ignore").decode()
+    return re.sub(r"\s+", " ", sem_acento).strip().lower()
+```
+
+- Aliases vêm de `localidades/referencia.py`: nome de cada UF, `brasil`, e cada região em duas formas (`regiao norte` na planilha do FBSP, `norte` na do IBGE; `centro-oeste` também sem hífen).
+- Rótulo fora dos aliases → erro com aba e linha. Nada de correspondência aproximada: um nome novo entra no dicionário por PR.
+
+### 4.6 Recortes
+
+```python
+def obter_recorte(itens: tuple[tuple[str, str], ...]) -> Recorte | None:
+    if not itens:
+        return None                                   # total do indicador
+    chave = ";".join(f"{d}={v}" for d, v in sorted(itens))
+    recorte, criado = Recorte.objects.get_or_create(chave=chave, defaults={"rotulo": rotulo_de(itens)})
+    if criado:
+        RecorteItem.objects.bulk_create(RecorteItem(recorte=recorte, dimensao=d, valor=v) for d, v in itens)
+    return recorte
+```
+
+Dimensões permitidas: `corporacao`, `situacao_policial` (e, se a pendência 2 for aprovada, `sexo`, `raca_cor`, `faixa_etaria`).
+
+### 4.7 IBGE
+
+- Aba `BRASIL_E_UFs` de cada `.ods`, lida com `pandas.read_excel(..., engine="odf", header=None, dtype=object)`.
+- O ano vem do título (`... DATA DE REFERÊNCIA EM 1º DE JULHO DE 2025`), conferido com o nome do arquivo.
+- Âncora: linha `BRASIL E UNIDADES DA FEDERAÇÃO`. Leitura até `Fonte:`.
+- Esperado por ano: 33 linhas (Brasil, 5 regiões e 27 UFs, com os totais regionais já publicados; não há soma).
+- A terceira coluna, com marcas de nota (ex.: `(1)` em PR e SC em 2025), é ignorada no valor e registrada no relatório.
+- As taxas do FBSP batem com essa população com diferença < 1e-13; por isso a validação pode ser estrita (pendência 5).
+
+### 4.8 Gravação idempotente
+
+```python
+RegistroAnual.objects.bulk_create(
+    objetos,
+    batch_size=2000,
+    update_conflicts=True,
+    unique_fields=["estado", "regiao", "indicador", "recorte", "ano"],
+    update_fields=["valor", "taxa_publicada", "situacao", "observacao", "fonte", "origem"],
+)
+```
+
+- O `ON CONFLICT` usa a constraint `NULLS NOT DISTINCT`, de modo que registros sem recorte ou de região atualizam em vez de duplicar. **Teste obrigatório:** importar duas vezes a fixture e comparar contagem e o conjunto de `id`.
+- Registros da carga anterior ausentes na atual não são apagados: entram no relatório como "órfãos".
+
+---
+
+## 5. Relatório de validação (RF12)
+
+Gerado em `dados/relatorios/validacao-<versao>.csv` (uma linha por apontamento) e `validacao-<versao>.md` (resumo com totais por tabela).
+
+| Verificação | Regra | Severidade |
+| :--- | :--- | :--- |
+| Taxa calculada × publicada | Base 100 mil hab., anos 2024 e 2025: `valor / pop × 100000` contra `taxa_publicada` | divergência acima da tolerância |
+| Variação calculada × publicada | Recalculada dos absolutos e comparada à coluna "Variação (%)" | divergência |
+| Conferência T01 × T02 | MVI 2024–2025, valor e taxa | divergência |
+| Base da taxa × nota do grupo | Texto da nota casa com `base_taxa` | erro (aborta) |
+| Soma dos recortes × total (T08) | Informativo | informação |
+| Soma das UFs × Brasil | Informativo | informação |
+| Contagem por situação | `informado`, `inexistente`, `nao_disponivel` por tabela | informação |
+| Célula vazia | Ocorrência de vazio em área de dados | aviso |
+| Órfãos | Chaves da carga anterior ausentes na atual | aviso |
+
+Colunas do CSV: `tabela, origem, indicador, localidade, recorte, ano, verificacao, esperado, obtido, diferenca, severidade`.
+
+---
+
+## 6. Testes
+
+- `tests/fixtures/`: planilha reduzida gerada a partir da real (T02, T08 e T15 com Brasil + 3 UFs), mantendo células mescladas, `-`, `...`, linhas em branco e notas.
+- Unitários: `normalizar_celula`, `separar_marcas`, `resolver_localidade`, `resolver_colunas`, `obter_recorte`, leitura do IBGE.
+- Integração: comando completo sobre a fixture; idempotência (duas execuções); rollback (célula inválida → nada gravado); relatório com divergência plantada.
+- Contra a planilha real (`@pytest.mark.planilha_real`): toda âncora é encontrada, nenhuma coluna órfã, total de 1.582 registros e 66 populações.
