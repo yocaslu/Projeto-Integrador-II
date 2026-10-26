@@ -1,0 +1,52 @@
+name: Deploy
+
+# Executado manualmente até a VM de produção estar pronta.
+# Segredos necessários: DEPLOY_HOST, DEPLOY_USER e DEPLOY_SSH_KEY.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  imagens:
+    name: Construir e publicar imagens
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        servico: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.servico }}
+          target: prod
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.servico }}:${{ github.sha }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.servico }}:latest
+
+  implantar:
+    name: Implantar na VM
+    runs-on: ubuntu-latest
+    needs: imagens
+    environment: producao
+    steps:
+      - uses: actions/checkout@v5
+      - name: Executar o script de implantação via SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          TAG: ${{ github.sha }}
+        run: ./infra/scripts/deploy.sh

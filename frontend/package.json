@@ -1,0 +1,42 @@
+{
+  "name": "anuario-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "jest"
+  },
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-leaflet": "^5.0.0",
+    "recharts": "^3.1.0"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.28.0",
+    "@babel/preset-react": "^7.27.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "babel-jest": "^30.0.0",
+    "identity-obj-proxy": "^3.0.0",
+    "jest": "^30.0.0",
+    "jest-environment-jsdom": "^30.0.0",
+    "vite": "^7.0.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "globals": {
+      "__REPOSITORIO_URL__": "https://github.com/yocaslu/projeto-integrador-ii"
+    },
+    "setupFilesAfterEnv": ["<rootDir>/src/setupTests.js"],
+    "moduleNameMapper": {
+      "\\.(css)$": "identity-obj-proxy"
+    }
+  }
+}

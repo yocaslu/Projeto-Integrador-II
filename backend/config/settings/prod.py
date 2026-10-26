@@ -1,0 +1,8 @@
+"""Configurações de produção, atrás do Traefik."""
+
+from .base import *  # noqa: F403
+
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True

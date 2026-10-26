@@ -1,0 +1,33 @@
+# Ambiente
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+backend/staticfiles/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/coverage/
+e2e/test-results/
+e2e/playwright-report/
+e2e/blob-report/
+
+# Dados gerados
+dados/relatorios/*
+!dados/relatorios/.gitkeep
+
+# Editores e sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

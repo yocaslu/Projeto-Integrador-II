@@ -1,0 +1,50 @@
+/* Tokens de cor. A paleta dos gráficos deve ser segura para daltonismo (RNF01)
+   e manter contraste mínimo de 4,5:1 para texto. */
+:root {
+  --cor-fundo: #ffffff;
+  --cor-texto: #1b1f24;
+  --cor-texto-suave: #4a5260;
+  --cor-destaque: #0b5cad;
+  --cor-foco: #b35c00;
+  --espaco: 1rem;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  color: var(--cor-texto);
+  background: var(--cor-fundo);
+}
+
+body {
+  margin: 0;
+}
+
+.cabecalho,
+main,
+.rodape {
+  max-width: 72rem;
+  margin: 0 auto;
+  padding: var(--espaco);
+}
+
+.rodape {
+  color: var(--cor-texto-suave);
+  font-size: 0.875rem;
+}
+
+a {
+  color: var(--cor-destaque);
+}
+
+:focus-visible {
+  outline: 3px solid var(--cor-foco);
+  outline-offset: 2px;
+}
+
+.pular-conteudo {
+  position: absolute;
+  left: -999px;
+}
+
+.pular-conteudo:focus {
+  left: var(--espaco);
+  top: var(--espaco);
+}

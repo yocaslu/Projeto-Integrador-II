@@ -1,0 +1,10 @@
+# Configuração dinâmica do Traefik: cabeçalhos de segurança aplicados a todas as rotas HTTPS.
+http:
+  middlewares:
+    seguranca:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        contentTypeNosniff: true
+        frameDeny: true
+        referrerPolicy: strict-origin-when-cross-origin
