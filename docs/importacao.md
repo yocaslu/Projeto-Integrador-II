@@ -68,6 +68,8 @@ Fontes (`FONTES`):
 
 Linhas e colunas abaixo são as observadas hoje, para conferência. **O código não usa posições fixas**: localiza a âncora e resolve cada coluna pelo caminho do cabeçalho (seção 4.2).
 
+Só a T02 publica totais regionais. Nas demais tabelas (28 localidades: Brasil e 27 UFs), os cinco totais regionais são **calculados** como soma das UFs (seção 4.8), o que acrescenta 5 registros por (indicador, recorte, ano). As contagens abaixo trazem as duas parcelas: lidos + calculados.
+
 ### T02 — Série histórica de MVI (dona de `mvi`)
 - Cabeçalho nas linhas 5–7; dados nas linhas 9–46, com 33 localidades (Brasil, 5 regiões e 27 UFs).
 - `B:O` → `valor` de 2012 a 2025; `P:AC` → `taxa_publicada` de 2012 a 2025 (por 100 mil habitantes).
@@ -82,7 +84,7 @@ Linhas e colunas abaixo são as observadas hoje, para conferência. **O código 
 - Cabeçalho nas linhas 5–8; dados nas linhas 10–38 (28 localidades).
 - Sub-bloco `Nº de Vítimas`: `B:C` → valor 2024/2025; `D:E` → taxa 2024/2025; `F` → variação (só validação).
 - Sub-bloco `Nº de Ocorrências` (`G:K`): **não importado** (pendência 1).
-- Gera 3 × 56 = **168** registros.
+- Gera 3 × 56 = 168 lidos + 3 × 10 = 30 regionais = **198** registros.
 
 ### T08 — Mortes decorrentes de intervenção policial
 - Cabeçalho nas linhas 5–7; dados nas linhas 9–37.
@@ -97,33 +99,37 @@ Linhas e colunas abaixo são as observadas hoje, para conferência. **O código 
 | `J:K` + `L:M` | Total | sem recorte | valor + taxa |
 
 - A soma dos recortes pode não bater com o total: há "..." e mortes em operações conjuntas (nota 5, Sergipe). A comparação entra no relatório como **informação**.
-- Gera 56 (total) + 4 × 56 (recortes) = **280** registros.
+- Amapá, Pará, Bahia, Rio Grande do Norte e Rio de Janeiro trazem "..." nos quatro recortes, nos dois anos (Sergipe também, exceto em serviço de 2025). O total sem recorte está completo. O FBSP publica o Brasil desses recortes como **soma parcial** das UFs que informaram; ele é importado como está e a situação entra no relatório como informação. Norte, Nordeste e Sudeste ficam `nao_disponivel` nesses recortes (seção 4.8): 4 recortes × 2 anos × 3 regiões = 24 registros.
+- Gera 5 × 56 = 280 lidos + 5 × 10 = 50 regionais = **330** registros.
 
 ### T11 — Roubo e furto de veículos
 - `B:C`/`D:E` → `roubo-veiculo`; `G:H`/`I:J` → `furto-veiculo`. Taxa por 100 mil veículos (Senatran, nota 2).
 - O bloco `Roubo e Furto de Veículo` (`L:P`) **não é importado** (regra 5).
-- Gera **112** registros.
+- Os totais regionais não têm taxa: não há frota de veículos por região.
+- Gera 112 lidos + 20 regionais = **132** registros.
 
 ### T12 — Roubo e furto de celulares (ocorrências)
 - `B:C`/`D:E` → `roubo-celular`; `G:H`/`I:J` → `furto-celular`. Taxa por 100 mil habitantes.
 - O bloco combinado `L:P` **não é importado**. A T13 (quantidade de aparelhos) também não.
-- Gera **112** registros.
+- Gera 112 lidos + 20 regionais = **132** registros.
 
 ### T14 — Roubo a estabelecimento comercial, residência e transeunte
 - `B:C`/`D:E` → `roubo-estabelecimento-comercial`; `G:H`/`I:J` → `roubo-residencia`; `L:M`/`N:O` → `roubo-transeunte`.
-- Gera **168** registros.
+- Gera 168 lidos + 30 regionais = **198** registros.
 
 ### T15 — Roubo a instituição financeira, de carga e total
 - `B:C`/`D:E` → `roubo-instituicao-financeira` (taxa por 100 instituições, Banco Central, nota 3).
 - `G:H`/`I:J` → `roubo-carga`.
-- `L:M`/`N:O` → `roubo`. Nota 1: o total pode ser menor que a soma dos subtipos, e por isso o total é importado, nunca somado.
-- Gera **168** registros.
+- `L:M`/`N:O` → `roubo`. Nota 1: o total pode ser menor que a soma dos subtipos, e por isso o total é importado, nunca somado. O total regional de `roubo` é a soma das UFs no próprio `roubo`, e não a soma dos subtipos da região.
+- Os totais regionais de `roubo-instituicao-financeira` não têm taxa: não há número de instituições por região.
+- Gera 168 lidos + 30 regionais = **198** registros.
 
 ### T21 — Homicídio de mulheres e feminicídio
 - Cabeçalho nas linhas 5–8; dados nas linhas 10–38.
 - `B:C`/`D:E` → `homicidio-mulheres`; `G:H`/`I:J` → `feminicidio`. Taxa por 100 mil mulheres (nota 2).
 - A coluna de proporção (`L:M`, percentual) **não é importada** (pendência 6).
-- Gera **112** registros.
+- Os totais regionais não têm taxa: a população feminina por região não está em `POPULACAO`.
+- Gera 112 lidos + 20 regionais = **132** registros.
 
 ### Totais esperados
 
@@ -320,7 +326,45 @@ Dimensões permitidas: `corporacao`, `situacao_policial` (e, se a pendência 2 f
 - A terceira coluna, com marcas de nota (ex.: `(1)` em PR e SC em 2025), é ignorada no valor e registrada no relatório.
 - As taxas do FBSP batem com essa população com diferença < 1e-13; por isso a validação pode ser estrita (pendência 5).
 
-### 4.8 Gravação idempotente
+### 4.8 Totais regionais (`agregacao.py`)
+
+Decisão registrada no ADR 0002. Só a T02 publica regiões; nas demais tabelas o total de cada região é a soma das UFs que a compõem, o mesmo método do FBSP.
+
+**Premissa conferida na planilha versionada:** em todas as colunas de números absolutos das tabelas lidas, o Brasil publicado é exatamente a soma das UFs, e na T02 cada região publicada é exatamente a soma de suas UFs, de 2012 a 2025. As únicas diferenças estão em colunas de taxa, variação e proporção, que não são somáveis.
+
+```python
+def somar_regioes(linhas, populacao) -> list[Linha]:
+    """Um total por (região, indicador, recorte, ano) das tabelas sem regiões publicadas."""
+    grupos = agrupar(l for l in linhas if l.localidade.nivel == "uf" and not tabela_publica_regioes(l))
+    novas = []
+    for (regiao, indicador, recorte, ano), ufs in grupos.items():
+        assert len(ufs) == regiao.estados.count()          # UF faltando → ErroImportacao
+        if any(u.situacao == "nao_disponivel" for u in ufs):
+            valor, situacao = None, "nao_disponivel"         # nunca soma parcial
+        elif all(u.situacao == "inexistente" for u in ufs):
+            valor, situacao = Decimal(0), "inexistente"
+        else:
+            valor, situacao = sum(u.valor for u in ufs), "informado"
+        novas.append(Linha(localidade=regiao, indicador=indicador, recorte=recorte, ano=ano,
+                           valor=valor, situacao=situacao, metodo="soma_ufs",
+                           taxa_publicada=None, origem=None, observacao=None,
+                           fonte=ufs[0].fonte))
+    return novas
+```
+
+Regras:
+- Soma **só números absolutos**, dentro do mesmo indicador, recorte e ano. Nunca entre um indicador e seus subtipos (o total regional de `roubo` vem das UFs de `roubo`).
+- Região com alguma UF `nao_disponivel` → `nao_disponivel`, valor nulo, mesmo que as demais informem. Uma soma parcial pareceria comparável às outras regiões.
+- `taxa_publicada` é nula. A taxa regional sai da regra geral (regra 11): calculada com a população da região quando a base é 100 mil habitantes; nas outras bases (mulheres, veículos, instituições) não há denominador regional e a taxa é nula.
+- `observacao` é nula: as notas do FBSP descrevem UFs específicas. `origem` é nula; o `metodo` identifica o cálculo.
+- `fonte` é a mesma das UFs somadas.
+
+`conferir_publicados`:
+- Brasil (todas as tabelas) e regiões (T02) contra a soma das UFs **que informaram**, que é como o FBSP publica.
+- Divergência → `ErroImportacao` com aba, indicador, recorte, ano, esperado e obtido. A carga é desfeita.
+- Agregado publicado com alguma UF `nao_disponivel` (hoje, o Brasil dos recortes da T08) → **informação** no relatório: o valor é uma soma parcial.
+
+### 4.9 Gravação idempotente
 
 ```python
 RegistroAnual.objects.bulk_create(

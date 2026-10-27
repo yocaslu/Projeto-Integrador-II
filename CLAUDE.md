@@ -88,7 +88,7 @@ Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
 1. `INDICADORES.slug` (único) — exigido pelo contrato da API.
 2. `ESTADOS.codigo_ibge` e `REGIOES.codigo_ibge` — chave estável para a malha do mapa e para cruzamentos futuros.
 3. `RECORTES.chave` (única, pares ordenados `dimensao=valor;...`) — torna a criação de recortes idempotente.
-4. `REGISTROS_ANUAIS.origem` (ex.: `T08!D15`) — rastreabilidade de cada valor até a célula da planilha.
+4. `REGISTROS_ANUAIS.origem` (ex.: `T08!D15`) — rastreabilidade de cada valor até a célula da planilha; nulo quando `metodo = soma_ufs`.
 5. Nova entidade `CARGAS` (versao, sha256 de cada arquivo, iniciada_em, concluida_em, status, total_registros) — alimenta `/metadados/` e o ETag.
 6. `POPULACAO` recebe a mesma CHECK de localidade e unicidade (localidade, ano) `NULLS NOT DISTINCT`.
 7. `taxa_publicada` guarda a taxa **sem arredondar**, como publicada (a planilha traz até 15 casas): `DecimalField(max_digits=24, decimal_places=12)`. `valor`: `DecimalField(max_digits=18, decimal_places=4)`.
@@ -100,7 +100,7 @@ Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
 - Nomes em português, `snake_case`, iguais aos atributos do modelo. UF e região por sigla; indicador por slug.
 - Recursos: `regioes`, `estados`, `indicadores`, `recortes`, `fontes`, `populacao`, `registros`, `ranking`, `comparacao`, `metadados`, `schema`/`docs`/`redoc`.
 - `/registros/` aceita `nivel`, `uf`, `regiao`, `indicador`, `incluir_subtipos`, `ano`/`ano_min`/`ano_max`, `recorte` (`total` padrão | `todos` | id), `situacao`, `ordenar`; listas separadas por vírgula.
-- Cada registro traz `localidade`, `indicador`, `recorte`, `valor`, `situacao`, `taxa` (`valor`, `base`, `origem` = `calculada`|`publicada`), `taxa_publicada`, `variacao` (`ano_referencia`, `valor_pct`, `taxa_pct`), `fonte`, `observacao`.
+- Cada registro traz `localidade`, `indicador`, `recorte`, `valor`, `situacao`, `metodo` (`publicado`|`soma_ufs`), `taxa` (`valor`, `base`, `origem` = `calculada`|`publicada`), `taxa_publicada`, `variacao` (`ano_referencia`, `valor_pct`, `taxa_pct`), `fonte`, `observacao`.
 - Decimais serializados como **texto** (`COERCE_DECIMAL_TO_STRING = True`).
 - JSON por padrão; CSV com `formato=csv` ou `Accept: text/csv` (streaming, máx. 50 mil linhas, colunas `fonte` e `situacao`, sem linhas de comentário).
 - Paginação por página só em `/registros/` e `/populacao/` (`pagina`, `tamanho` padrão 100, máx. 1000); demais recursos com `pagination_class = None`.
@@ -188,7 +188,7 @@ projeto-integrador-ii/
 │   ├── importacao.md                  # mapeamento da planilha e algoritmo de extração
 │   ├── contrato-api.md · modelagem.md ✚ transcrição das seções do roteiro
 │   ├── api/openapi.yaml               ✚ esquema gerado e versionado (diff verificado no CI)
-│   └── adr/                           ✚ 0001-api-rest.md, 0002-ajustes-modelo.md, ...
+│   └── adr/                           # 0001-monorepo.md, 0002-totais-regionais.md  ✚ ajustes do modelo, ...
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
 
