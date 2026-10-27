@@ -20,7 +20,7 @@ Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qua
 - Ordem dentro da app `api` (cada passo com os testes da seção 8 do contrato que lhe cabem):
   1. `parametros.py` (regras comuns da seção 2 do contrato) e `campos.py` (decimais da seção 1.2);
   2. catálogos: `/regioes/`, `/estados/`, `/fontes/`, `/indicadores/`, `/recortes/`;
-  3. `queries.py`: anotação de taxa e variação no SQL (precisão total), ordem canônica de localidades;
+  3. `queries.py`: anotação de taxa, variação e participação no SQL (precisão total, sempre na mesma unidade), ordem canônica de localidades;
   4. `/registros/` (filtros, regra de nível, ordenação, paginação) e `/populacao/`;
   5. `/ranking/` e `/comparacao/`; 6. `/metadados/`;
   7. CSV (negociação, colunas, limite, streaming); 8. cache (ETag, `Vary`, 304); 9. `openapi.yaml`.
@@ -82,18 +82,18 @@ Python 3.14.9 · Django 6.1.2 · DRF 3.18.3 · django-filter 26.2 · drf-spectac
 - Testes rodam no PostgreSQL (não SQLite), porque o modelo usa `NULLS NOT DISTINCT`.
 
 ### Indicadores do escopo
-MVI (indicador-síntese), letalidade policial (mortes decorrentes de intervenção policial), feminicídio, roubo (total e subtipos) e furto (só subtipos: veículo e celular; o Anuário não publica total de furtos).
+MVI (indicador-síntese), letalidade policial (mortes decorrentes de intervenção policial), feminicídio, roubo (total e subtipos) e furto (só subtipos: veículo e celular; o Anuário não publica total de furtos). Homicídio doloso, latrocínio e lesão corporal seguida de morte são importados em **vítimas e ocorrências** (T03–T05); os demais, só na sua unidade padrão. Proporções (T09, T21) são **calculadas pela API** (`participacao`), não importadas. Perfis de vítimas (sexo, raça/cor, faixa etária) estão **fora do escopo** (ADR 0004).
 
 ### Modelo de dados (resumo)
 - `REGIOES` (5 regiões + Brasil, `tipo` = `regiao`|`pais`); `ESTADOS` (27 UFs, cada uma em uma região).
-- `REGISTROS_ANUAIS` é a tabela de fatos: um valor por (localidade, indicador, recorte, ano), com fonte.
+- `REGISTROS_ANUAIS` é a tabela de fatos: um valor por (localidade, indicador, recorte, unidade, ano), com fonte.
 - Localidade = `estado_id` **ou** `regiao_id`, exatamente um (`CheckConstraint`).
-- Unicidade em (estado, regiao, indicador, recorte, ano) com `UniqueConstraint(..., nulls_distinct=False)`.
+- Unicidade em (estado, regiao, indicador, recorte, unidade, ano) com `UniqueConstraint(..., nulls_distinct=False)`.
 - `INDICADORES` em hierarquia (`indicador_pai`), que significa "contido em", nunca "soma de": MVI → homicídio doloso (→ homicídio de mulheres → feminicídio), latrocínio, lesão corporal seguida de morte, morte decorrente de intervenção policial; Roubo → veículo, celular, transeunte, residência, estabelecimento comercial, instituição financeira, carga; Furto (agrupador sem registros) → veículo, celular.
 - Indicadores-pai e o total do Brasil são **importados**, nunca somados. As regiões são importadas quando o FBSP as publica (só MVI, T02); nos demais casos são **calculadas na importação** como soma das UFs (`metodo = soma_ufs`). Se alguma UF da região estiver "...", a região fica nula (`nao_disponivel`). Detalhes em `docs/importacao.md`, seção 4.9.
-- Características de vítimas ou agentes são **recortes** (`RECORTES` + `RECORTE_ITENS`, pares dimensão/valor, ex.: corporação = Polícia Militar + situação = em serviço). Registro sem recorte = total.
+- Características dos agentes são **recortes** (`RECORTES` + `RECORTE_ITENS`, pares dimensão/valor; dimensões `corporacao` e `situacao_policial`, ex.: corporação = Polícia Militar + situação = em serviço). Registro sem recorte = total.
 - `situacao`: `informado` | `inexistente` (“-” → valor 0) | `nao_disponivel` (“...” → valor nulo). Notas do FBSP vão em `observacao`.
-- `unidade` (vítimas, ocorrências, percentual) e `base_taxa` (100 mil habitantes; 100 mil mulheres; 100 mil veículos; 100 instituições) ficam em `INDICADORES`.
+- `unidade` (`vitimas` | `ocorrencias`) fica no **registro**; `INDICADORES` guarda `unidade_padrao` e `base_taxa` (100 mil habitantes; 100 mil mulheres; 100 mil veículos; 100 instituições). A base vale para as duas unidades.
 - Taxa por 100 mil habitantes é **calculada** a partir de `POPULACAO` (IBGE 2024 e 2025, as mesmas estimativas usadas pelo FBSP); nos demais casos (outras bases e série MVI 2012–2023) usa-se `taxa_publicada`. A variação percentual é calculada na consulta e nunca armazenada.
 
 Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
@@ -106,6 +106,8 @@ Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
 7. `taxa_publicada` guarda a taxa publicada **arredondada a 12 casas**: `DecimalField(max_digits=24, decimal_places=12)`. A planilha traz até 17 dígitos significativos (até 18 casas), que são a representação em ponto flutuante do Excel, não precisão do FBSP; o erro de até 5e-13 é irrelevante para a análise, mas o valor gravado não reproduz a célula dígito a dígito (ADR 0003). O arredondamento é feito na importação, em `normalizacao.py`, com `Decimal(str(v)).quantize(Decimal("1e-12"), ROUND_HALF_UP)`, para que a linha em memória seja igual à gravada. `valor`: `DecimalField(max_digits=18, decimal_places=4)`.
 8. `REGISTROS_ANUAIS.metodo` (`publicado` | `soma_ufs`, padrão `publicado`) — distingue o valor lido da planilha do agregado regional calculado pelo projeto; exposto na API (RF11). `origem` com `max_length=200`, porque a linha regional lista as células somadas.
 9. `INDICADORES.ordem` (inteiro único, pré-ordem da hierarquia) — ordena indicadores na API; valores em `docs/importacao.md`, seção 2 (ADR 0003).
+10. `REGISTROS_ANUAIS.unidade` (`vitimas` | `ocorrencias`), na chave única (ADR 0004) — o mesmo indicador tem vítimas e ocorrências (T03–T05).
+11. `INDICADORES.unidade` passa a `INDICADORES.unidade_padrao` — a unidade que a API usa quando o cliente não pede outra (ADR 0004). A unidade `percentual` deixa de existir.
 
 ### Contrato da API (resumo)
 
@@ -122,24 +124,26 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 - Catálogos (`/regioes/`, `/estados/`, `/indicadores/`, `/recortes/`, `/fontes/`): array JSON na raiz, sem paginação.
 - `/registros/` e `/populacao/`: paginados (`pagina` padrão 1, `tamanho` padrão 100, máx. 1000, acima → 400), envelope `count`/`next`/`previous`/`results`.
 - `/ranking/`, `/comparacao/`, `/metadados/`: objeto, com os parâmetros efetivos (inclusive padrões resolvidos) ecoados.
-- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`, `unidade`), `recorte` (`null` | `id`, `rotulo`, `itens`), `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte`), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct`), `fonte`, `observacao`.
+- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`), `recorte` (`null` | `id`, `rotulo`, `itens`), `unidade`, `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte`), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct` = variação da taxa, a mesma do FBSP), `participacao` (`referencia` {`tipo`, `indicador`} | `null`, `valor_pct`), `fonte`, `observacao`.
+- `participacao`: sem recorte, valor ÷ indicador-pai × 100 (`indicador_pai`); com recorte, valor ÷ total do mesmo indicador × 100 (`total_do_indicador`); mesma localidade, ano e unidade; nula em raízes e filhos de agrupador. Substitui as proporções da T09 e da T21. Nunca somar participações.
 
 **Decimais** (texto, `COERCE_DECIMAL_TO_STRING = True`)
-- `valor` de vítimas/ocorrências e população: inteiro (`"5800"`). `taxa.valor`, `valor_pct`, `taxa_pct`: 2 casas fixas (`"40.94"`, `"-3.10"`). `taxa_publicada`: precisão guardada, sem zeros à direita nem notação exponencial.
+- `valor` de vítimas/ocorrências e população: inteiro (`"5800"`). `taxa.valor`, `valor_pct`, `taxa_pct`, `participacao.valor_pct`: 2 casas fixas (`"40.94"`, `"-3.10"`). `taxa_publicada`: precisão guardada, sem zeros à direita nem notação exponencial.
 - Arredondar **só** na serialização (`apps/api/v1/campos.py`), meio para longe do zero (`ROUND_HALF_UP`, igual ao `round()` do PostgreSQL). `queries.py` devolve precisão total.
 - Ordenação por taxa e ranking usam o valor **arredondado** (a API classifica pelo que mostra).
 
 **`/registros/`**
-- Parâmetros: `nivel`, `uf`, `regiao`, `indicador`, `incluir_subtipos`, `ano` | `ano_min`/`ano_max`, `recorte` (`total` padrão | `todos` | ids), `situacao`, `ordenar`. Listas por vírgula.
+- Parâmetros: `nivel`, `uf`, `regiao`, `indicador`, `incluir_subtipos`, `ano` | `ano_min`/`ano_max`, `unidade` (`padrao` padrão | `todas` | lista de `vitimas`, `ocorrencias`), `recorte` (`total` padrão | `todos` | ids), `situacao`, `ordenar`. Listas por vírgula.
+- `unidade=padrao` = a `unidade_padrao` de cada indicador: vítimas e ocorrências do mesmo crime nunca se misturam por omissão. `indicador` informado sem registros na unidade pedida → 400.
 - Nível: sem `nivel`, `uf` ou `regiao` → só as UFs. `uf` implica `nivel=uf`. `regiao` exige `nivel` explícito (`uf` → UFs da região; `regiao` → agregado). Mistura de níveis só por lista explícita (`nivel=pais,regiao,uf`), e então sem `uf`/`regiao`. `uf` + `regiao`, `nivel=regiao&uf=SP`, `nivel=pais&regiao=…` → 400. Tabela completa: contrato, 4.7.2.
 - `incluir_subtipos=true` exige `indicador` e traz todos os descendentes. `indicador=furto` sem ele → 400.
-- `ordenar`: `ano`, `indicador` (por `ordem`), `localidade` (canônica), `recorte`, `valor`, `taxa`, `variacao_valor`, `variacao_taxa`. Padrão `indicador, localidade, recorte, ano`; desempate final por `id`; nulos ao final nas duas direções; taxa e variação anotadas e ordenadas no SQL.
+- `ordenar`: `ano`, `indicador` (por `ordem`), `localidade` (canônica), `recorte`, `unidade`, `valor`, `taxa`, `variacao_valor`, `variacao_taxa`, `participacao`. Padrão `indicador, localidade, recorte, unidade, ano`; desempate final por `id`; nulos ao final nas duas direções; taxa, variação e participação anotadas e ordenadas no SQL.
 
-**`/ranking/`**: `indicador` (um, obrigatório), `ano` (um; padrão = último ano com dados do indicador), `criterio` (`taxa` padrão | `valor`), `recorte` (`total` padrão | um id). Só as 27 UFs, decrescente, empates (1, 2, 2, 4), nulos ao final com `posicao: null`.
+**`/ranking/`**: `indicador` (um, obrigatório), `ano` (um; padrão = último ano com dados do indicador), `criterio` (`taxa` padrão | `valor` | `participacao`), `unidade` (uma; padrão = `unidade_padrao`), `recorte` (`total` padrão | um id). Só as 27 UFs, decrescente, empates (1, 2, 2, 4), nulos ao final com `posicao: null`.
 
-**`/comparacao/`**: `uf` (uma, obrigatória), `indicador` (um, obrigatório), `ano_min`/`ano_max` (padrão = anos do indicador), `recorte` (`total` padrão | um id). `series` = [UF, região da UF, Brasil], cada uma com `pontos` por ano, os mesmos anos nas três.
+**`/comparacao/`**: `uf` (uma, obrigatória), `indicador` (um, obrigatório), `ano_min`/`ano_max` (padrão = anos do indicador), `unidade` (uma; padrão = `unidade_padrao`), `recorte` (`total` padrão | um id). `series` = [UF, região da UF, Brasil], cada uma com `pontos` por ano, os mesmos anos nas três.
 
-**`/metadados/`**: `carga`, `anos` (min/max), `niveis`, `unidades`, `situacoes`, `metodos`, `fontes` e a árvore aninhada de `indicadores` (com `anos` e `recortes` de cada um).
+**`/metadados/`**: `carga`, `anos` (min/max), `niveis`, `unidades`, `situacoes`, `metodos`, `fontes` e a árvore aninhada de `indicadores` (com `unidade_padrao`, `unidades`, `anos` e `recortes` de cada um). `/indicadores/` traz `unidade_padrao` e `unidades` em vez de `unidade`.
 
 **Parâmetros, CSV e erros**
 - Parâmetro desconhecido, repetido (`uf=SP&uf=RJ`) ou vazio → 400. Valor inexistente em parâmetro de consulta (`uf=XX`) → 400; 404 só para caminho (`/estados/XX/`).
@@ -154,7 +158,7 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 | Código | Resumo |
 | :--- | :--- |
 | RF01 | Importar e normalizar planilha do FBSP e estimativas do IBGE |
-| RF02 | API por estado, região, ano, indicador, subtipo e recorte |
+| RF02 | API por estado, região, ano, indicador, subtipo, unidade (vítimas/ocorrências) e recorte (características dos agentes) |
 | RF05 | Taxas por 100 mil hab. (IBGE) e variação percentual |
 | RF07 | Exportação CSV |
 | RF08 | Documentação OpenAPI interativa |
@@ -198,16 +202,16 @@ projeto-integrador-ii/
 │   │   ├── catalogo/                  # Fonte, Indicador, Recorte, RecorteItem
 │   │   │   └── referencia.py          ✚ hierarquia de indicadores (slug, pai, unidade, base_taxa)
 │   │   ├── registros/                 # RegistroAnual
-│   │   │   └── queries.py             # taxa, variação (subconsulta), ranking com empates, comparação
+│   │   │   └── queries.py             # taxa, variação e participação (subconsultas), ranking com empates, comparação
 │   │   ├── importacao/
 │   │   │   ├── models.py              ✚ Carga
 │   │   │   ├── mapeamento.py          ✚ especificação declarativa das tabelas T02–T21
 │   │   │   ├── leitores/              # fbsp.py (openpyxl), ibge.py (pandas + odfpy)
 │   │   │   ├── normalizacao.py        # “-”, “...”, Decimal  ✎ notas de rodapé e localidades
-│   │   │   ├── linhas.py              # Chave, Linha, Localidade (nível + sigla), Metodo
-│   │   │   ├── agregacao.py           # regiões = soma das UFs; confere Brasil e T02
+│   │   │   ├── linhas.py              # Chave, Linha, Localidade (nível + sigla), Metodo  ✎ `unidade` na Chave
+│   │   │   ├── agregacao.py           # regiões = soma das UFs; confere Brasil e T02  ✎ somável pela unidade da chave
 │   │   │   ├── gravacao.py            ✚ upsert idempotente
-│   │   │   ├── validacao.py           # relatório de divergências  ✎ tolerância (ver Pendências)
+│   │   │   ├── validacao.py           # relatório de divergências  ✎ sem arredondar, tolerância 1e-6, variação da taxa, T09/T21
 │   │   │   └── management/commands/
 │   │   │       ├── importar_anuario.py
 │   │   │       └── inspecionar_planilha.py ✚ lista abas, âncoras e caminhos de cabeçalho
@@ -249,11 +253,11 @@ Motivos das mudanças:
 Especificação completa (tabelas, colunas, regras e pseudocódigo) em **`docs/importacao.md`**. Leia antes de mexer em `apps/importacao/`.
 
 Resumo:
-- **Lidas:** T02 (MVI 2012–2025), T03 (homicídio doloso), T04 (latrocínio), T05 (lesão corporal seguida de morte), T08 (MDIP por corporação e situação), T11 (roubo/furto de veículo), T12 (roubo/furto de celular), T14 (roubo a estabelecimento comercial, residência, transeunte), T15 (roubo a instituição financeira, de carga e total), T21 (homicídio de mulheres e feminicídio).
-- **Só conferência:** T01 (MVI 2024–2025; idêntica a T02).
+- **Lidas:** T02 (MVI 2012–2025), T03 (homicídio doloso), T04 (latrocínio), T05 (lesão corporal seguida de morte) — T03–T05 em vítimas e ocorrências, T08 (MDIP por corporação e situação), T11 (roubo/furto de veículo), T12 (roubo/furto de celular), T14 (roubo a estabelecimento comercial, residência, transeunte), T15 (roubo a instituição financeira, de carga e total), T21 (homicídio de mulheres e feminicídio).
+- **Só conferência:** T01 (MVI 2024–2025; idêntica a T02), T09 (MVI, MDIP e proporção MDIP/MVI) e a coluna de proporção da T21; as proporções são comparadas à `participacao` calculada.
 - **Ignoradas:** painéis (P), gráficos (G), quadros (Q) e as demais tabelas.
 - **População:** aba `BRASIL_E_UFs` dos dois `.ods` do IBGE, já com totais de regiões e Brasil.
-- **Volume esperado:** 1.782 registros (1.582 lidos + 200 regionais calculados, dos quais 24 nulos) e 66 linhas de população. Contagem diferente é falha da importação.
+- **Volume esperado:** 1.980 registros (1.750 lidos + 230 regionais calculados, dos quais 24 nulos) e 66 linhas de população. Contagem diferente é falha da importação.
 
 Algoritmo:
 1. Conferir o SHA-256 dos arquivos contra `dados/README.md`; se divergir, abortar.
@@ -280,17 +284,17 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 1. Nunca editar arquivos em `dados/brutos/`. Nova versão de planilha = novo arquivo + novo hash em `dados/README.md`, em commit próprio.
 2. O banco só é escrito pelo comando `importar_anuario` (e pelas migrações). Nada de endpoints de escrita, admin com escrita, fixtures em produção ou SQL manual.
 3. A importação é idempotente: rodar duas vezes não muda contagem nem `id` de nenhum registro. Há teste para isso.
-4. Indicadores-pai e o total do Brasil são **importados**, nunca somados a partir dos subtipos ou das UFs. Regiões: importadas quando publicadas (T02); nos demais casos, calculadas só em `agregacao.py`, como soma das UFs da região, apenas para unidade absoluta (vítimas, ocorrências), no mesmo indicador, recorte e ano, com `metodo = soma_ufs`. Se alguma UF da região estiver "...", a região fica `NULL`/`nao_disponivel`, nunca soma parcial. Taxas nunca são somadas nem tiradas em média. Agregado publicado que divirja da soma das UFs que informaram aborta a importação.
+4. Indicadores-pai e o total do Brasil são **importados**, nunca somados a partir dos subtipos ou das UFs. Regiões: importadas quando publicadas (T02); nos demais casos, calculadas só em `agregacao.py`, como soma das UFs da região, apenas para unidade absoluta (vítimas, ocorrências), no mesmo indicador, recorte, unidade e ano, com `metodo = soma_ufs`. Se alguma UF da região estiver "...", a região fica `NULL`/`nao_disponivel`, nunca soma parcial. Taxas nunca são somadas nem tiradas em média. Agregado publicado que divirja da soma das UFs que informaram aborta a importação.
 5. Não existe total de furtos. O indicador `furto` não tem registros próprios; nunca calcule nem exiba um total. Os blocos "Roubo e Furto" das tabelas T11 e T12 não são importados.
 6. “-” → `valor = 0`, `situacao = inexistente`. “...” → `valor = NULL`, `situacao = nao_disponivel`. Célula vazia → `nao_disponivel` com aviso no relatório. Qualquer outro texto aborta a importação com a célula de origem na mensagem.
 7. Localidade não reconhecida, coluna de cabeçalho não resolvida ou contagem diferente da esperada abortam a importação. Nunca pular linha em silêncio.
 8. Cada (indicador, localidade, recorte, ano) tem **uma** tabela dona em `mapeamento.py`; outra tabela com o mesmo dado só entra como conferência no relatório.
-9. Recortes de perfil de vítimas existem só para o Brasil; não inventar recorte por UF.
+9. Perfis de vítimas (sexo, raça/cor, faixa etária) estão fora do escopo; as únicas dimensões de recorte são `corporacao` e `situacao_policial`. Proporções publicadas (T09, T21) não são importadas: são `participacao`, calculada na consulta.
 
 **Banco e cálculos**
 10. Valores, taxas e populações usam `DecimalField` (NUMERIC). `float` é proibido em modelos, cálculos e serializers; converter célula com `Decimal(str(v))`.
-11. Taxa calculada só quando a base é 100 mil habitantes e há população do IBGE para o ano; nos demais casos, `taxa_publicada`. Unidade percentual → taxa nula.
-12. Variação percentual por **subconsulta** ao ano anterior, nunca por função de janela; nula se faltar um dos anos ou se a base for zero. Nunca armazenada.
+11. Taxa calculada só quando a base é 100 mil habitantes e há população do IBGE para o ano (vale para vítimas e ocorrências); nos demais casos, `taxa_publicada`.
+12. Variação e participação por **subconsulta** (ano anterior; indicador-pai ou total do indicador), nunca por função de janela, sempre na mesma unidade; nulas se faltar o termo de comparação ou se a base for zero. Nunca armazenadas.
 13. Toda alteração de modelo vem com migração no mesmo commit. Migração já mesclada na `main` não é editada; corrige-se com outra migração.
 14. Constraints vivem no banco (`CheckConstraint(condition=...)` de localidade, `UniqueConstraint(..., nulls_distinct=False)`), não só em validação Python.
 
@@ -298,7 +302,7 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 15. API somente leitura: `ReadOnlyModelViewSet` ou `APIView` com `GET`; nada de `create/update/destroy`.
 16. Parâmetro de consulta desconhecido → 400 (o padrão do django-filter, de ignorar, é desligado).
 17. `uf` e `regiao` são parâmetros separados (SE = Sergipe ≠ Sudeste).
-18. `recorte=total` é o padrão de `/registros/`; nunca devolver totais misturados com recortes por omissão.
+18. `recorte=total` e `unidade=padrao` são os padrões de `/registros/`; nunca devolver totais misturados com recortes, nem vítimas misturadas com ocorrências, por omissão.
 19. Decimais saem como texto; nunca `coerce_to_string=False`.
 20. Todo erro sai em Problem Details; 500 sem detalhes técnicos no corpo.
 21. Todo valor e toda taxa saem com a fonte (`fonte` do valor; `taxa.fonte` do denominador), em JSON e em CSV. CSV sem linhas de comentário. Catálogos não precisam de fonte por item.
@@ -321,14 +325,14 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 
 ## Pendências que exigem decisão da equipe
 
-Não decida sozinho; pergunte antes de implementar o que depender destes pontos.
+Não decida sozinho; pergunte antes de implementar o que depender destes pontos. Hoje todas estão resolvidas; uma pendência nova entra aqui com o próximo número.
 
-1. **Número de ocorrências** (T03–T05 trazem vítimas e ocorrências): por ora só **vítimas** é importado, coerente com a definição de MVI. Importar ocorrências exigiria indicadores próprios.
-2. **Perfis de vítimas** (sexo, raça/cor, faixa etária): estão nos painéis P01, P03 e P06, em blocos de dados de gráfico, sem cabeçalho tabular. Ficam fora da primeira carga; se entrarem, o mapeamento será por intervalo de células fixo.
+1. ~~Número de ocorrências~~ — **resolvida (ADR 0004):** importadas; `unidade` no registro, `unidade_padrao` no indicador.
+2. ~~Perfis de vítimas~~ — **resolvida (ADR 0004):** fora do escopo.
 3. ~~Homicídio de mulheres~~ — **resolvida (ADR 0003):** `homicidio-doloso` → `homicidio-mulheres` → `feminicidio`.
 4. ~~Casas decimais na API~~ — **resolvida (ADR 0003):** inteiro em valores absolutos, 2 casas em `taxa.valor` e `variacao`, precisão guardada em `taxa_publicada` (contrato, seção 1.2).
-5. **Tolerância da validação:** `validacao.py` arredonda a 0,1 e tolera 0,1, mas as taxas do FBSP batem com o cálculo pela população do IBGE até ~1e-14. Sugestão: comparar com tolerância de 1e-6.
-6. **Proporções** (T09 e coluna "Proporção" da T21): derivadas de outros indicadores; não importadas por ora.
+5. ~~Tolerância da validação~~ — **resolvida (ADR 0004):** comparação sem arredondar, tolerância absoluta de 1e-6; a variação publicada é comparada à variação da taxa.
+6. ~~Proporções~~ — **resolvida (ADR 0004):** calculadas pela API (`participacao`); T09 e T21 viram conferência.
 7. ~~Precisão de `taxa_publicada`~~ — **resolvida (ADR 0003):** 12 casas, arredondadas na importação (ajuste 7).
 
 ---

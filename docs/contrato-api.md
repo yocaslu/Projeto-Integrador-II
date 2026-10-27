@@ -63,7 +63,7 @@ do PostgreSQL para `numeric`).
 | Campo | Formato | Exemplo |
 | :--- | :--- | :--- |
 | `valor` com unidade `vitimas` ou `ocorrencias` | inteiro, sem casas | `"5800"` |
-| `valor` com unidade `percentual` | 2 casas fixas | `"37.50"` |
+| `participacao.valor_pct` | 2 casas fixas | `"16.19"` |
 | `taxa.valor` | 2 casas fixas | `"40.94"` |
 | `variacao.valor_pct`, `variacao.taxa_pct` | 2 casas fixas, sinal `-` quando negativa | `"-3.10"` |
 | `taxa_publicada` | até 12 casas (a precisão guardada no banco), sem zeros à direita e sem notação exponencial | `"40.9415826"` |
@@ -75,8 +75,8 @@ do PostgreSQL para `numeric`).
   (RF12); o cliente que quiser exibi-la arredonda. As 12 casas vêm do arredondamento feito na
   importação (a célula da planilha pode ter até 18 casas, ruído do ponto flutuante do Excel); a
   diferença é de no máximo 5e-13.
-- **A API ordena e classifica pelo que mostra:** `ordenar=taxa` e o ranking usam a taxa já
-  arredondada a 2 casas. Duas UFs que aparecem com `"40.94"` empatam.
+- **A API ordena e classifica pelo que mostra:** `ordenar=taxa`, `ordenar=participacao` e o
+  ranking usam o valor já arredondado a 2 casas. Duas UFs que aparecem com `"40.94"` empatam.
 
 ---
 
@@ -118,8 +118,15 @@ Os mesmos objetos aparecem em `/registros/`, `/ranking/`, `/comparacao/` e `/pop
 
 **Indicador (resumo)**
 ```json
-{"slug": "mvi", "nome": "Mortes Violentas Intencionais", "unidade": "vitimas"}
+{"slug": "homicidio-doloso", "nome": "Homicídio doloso"}
 ```
+A unidade não fica no indicador, e sim no registro: o mesmo indicador pode ter registros em
+vítimas e em ocorrências (ADR 0004).
+
+**Unidade** — campo `unidade` do registro: `vitimas` | `ocorrencias`. Um fato com duas vítimas
+conta 2 em `vitimas` e 1 em `ocorrencias`. `homicidio-doloso`, `latrocinio` e
+`lesao-corporal-seguida-de-morte` têm as duas; os demais só a sua `unidade_padrao`. Taxa, variação
+e participação são sempre calculadas **dentro da mesma unidade**.
 
 **Recorte** — `null` quando o registro é o total do indicador.
 ```json
@@ -144,13 +151,13 @@ Os mesmos objetos aparecem em `/registros/`, `/ranking/`, `/comparacao/` e `/pop
 {"valor": "40.94", "base": "100 mil habitantes", "origem": "calculada",
  "fonte": {"id": 5, "nome": "IBGE – Estimativas da população residente"}}
 ```
-- `base`: `base_taxa` do indicador; `null` quando o indicador não tem base (unidade percentual).
+- `base`: `base_taxa` do indicador; `null` quando o indicador não tem base (hoje, nenhum indicador com registros).
 - `origem`: `calculada` (valor ÷ população do IBGE × 100 000, quando a base é 100 mil habitantes
   e há população para o ano e a localidade) ou `publicada` (`taxa_publicada` arredondada). `null`
   quando `valor` é `null`.
 - `fonte`: fonte do **denominador** (IBGE para habitantes e mulheres, Senatran para veículos,
   Banco Central para instituições). `null` quando `valor` é `null`.
-- `valor` é `null` quando: unidade percentual; `situacao = nao_disponivel`; ou não há denominador
+- `valor` é `null` quando: `situacao = nao_disponivel`; ou não há denominador
   (ex.: totais regionais de feminicídio, de roubo e furto de veículo e de roubo a instituição
   financeira).
 
@@ -160,9 +167,33 @@ Os mesmos objetos aparecem em `/registros/`, `/ranking/`, `/comparacao/` e `/pop
 ```
 - `ano_referencia` é sempre `ano - 1`.
 - `valor_pct` = (valor − valor do ano anterior) ÷ valor do ano anterior × 100, mesma localidade,
-  indicador e recorte. `taxa_pct` é o mesmo cálculo sobre a taxa **em precisão total**
+  indicador, recorte e unidade. `taxa_pct` é o mesmo cálculo sobre a taxa **em precisão total**
   (arredonda-se só o resultado).
+- `taxa_pct` corresponde à coluna "Variação (%)" das tabelas do FBSP, que é a variação da taxa, e
+  não a do valor absoluto.
 - Ficam `null` quando falta um dos anos, quando um dos valores é nulo ou quando a base é zero.
+
+**Participação** — sempre presente. Substitui as proporções publicadas pelo FBSP (T09 e T21),
+que não são importadas (ADR 0004).
+```json
+{"referencia": {"tipo": "indicador_pai", "indicador": "mvi"}, "valor_pct": "16.19"}
+```
+- Registro **sem recorte**, cujo indicador tem pai com registros: valor ÷ valor do pai × 100, na
+  mesma localidade, ano e unidade, sem recorte (`tipo = indicador_pai`). Ex.: MDIP em relação às
+  MVI (T09); feminicídio em relação aos homicídios de mulheres (T21); roubo de celular em relação
+  ao roubo.
+- Registro **com recorte**: valor ÷ valor do total do mesmo indicador × 100, na mesma
+  localidade, ano e unidade (`tipo = total_do_indicador`, `indicador` = o próprio). Ex.: mortes
+  por policiais militares em serviço em relação ao total de MDIP.
+- `referencia: null` e `valor_pct: null` quando não há referência: indicador-raiz (`mvi`,
+  `roubo`) sem recorte, ou pai agrupador sem registros (`furto-veiculo`, `furto-celular`).
+- `valor_pct: null` (com `referencia` preenchida) quando o numerador ou o denominador é nulo, o
+  denominador é zero ou o pai não tem registro nessa unidade (ex.: homicídio doloso em
+  ocorrências, já que a MVI só existe em vítimas).
+- **Não some participações**: os subtipos não fecham 100% (o total de roubo é menor que a soma
+  dos subtipos; uma ocorrência pode estar em mais de um subtipo).
+- Calculada no SQL por subconsulta, em precisão total, como a variação; arredondada só na
+  serialização.
 
 ---
 
@@ -214,17 +245,20 @@ seção 4.3.1). Lista **plana**; a árvore aninhada está em `/metadados/`.
 ```json
 [
   {"slug": "feminicidio", "nome": "Feminicídio", "descricao": "…",
-   "unidade": "vitimas", "base_taxa": "100 mil mulheres",
+   "unidade_padrao": "vitimas", "unidades": ["vitimas"], "base_taxa": "100 mil mulheres",
    "indicador_pai": "homicidio-mulheres", "subtipos": [],
    "possui_registros": true, "anos": [2024, 2025],
    "recortes": []}
 ]
 ```
-- `unidade`: `vitimas` | `ocorrencias` | `percentual`.
+- `unidade_padrao`: `vitimas` | `ocorrencias`, a unidade usada quando o cliente não pede outra.
+- `unidades`: unidades com registros do indicador, na ordem `vitimas`, `ocorrencias`
+  (`["vitimas", "ocorrencias"]` em homicídio doloso, latrocínio e lesão corporal seguida de
+  morte; `[]` em agrupadores).
 - `base_taxa`: texto de `INDICADORES.base_taxa`, ou `null`.
 - `indicador_pai`: slug ou `null`. `subtipos`: slugs dos **filhos diretos**, na ordem.
 - `possui_registros`: `false` para agrupadores sem dado próprio (hoje só `furto`).
-- `anos`: anos com registros do indicador, crescentes. `[]` em agrupadores.
+- `anos`: anos com registros do indicador (em qualquer unidade), crescentes. `[]` em agrupadores.
 - `recortes`: `[{"id", "rotulo"}]` dos recortes com registros desse indicador, por `chave`.
 
 #### 4.3.1 Hierarquia
@@ -320,9 +354,13 @@ Paginado. O detalhe devolve o mesmo objeto de um item de `results`; id inexisten
 | `incluir_subtipos` | `true`, `false` | `false` | Exige `indicador`. Inclui **todos os descendentes**, em qualquer profundidade (`homicidio-doloso` traz também `homicidio-mulheres` e `feminicidio`). |
 | `ano` | lista de anos | todos | Não convive com `ano_min`/`ano_max`. |
 | `ano_min`, `ano_max` | ano | — | Intervalo fechado; podem vir sozinhos. |
+| `unidade` | `padrao`, `todas` ou lista de `vitimas`, `ocorrencias` | `padrao` | `padrao`: a `unidade_padrao` de cada indicador. `todas`: as duas. Lista: só essas. `padrao`/`todas` não se misturam com a lista. Se `indicador` foi informado e nenhum deles tem registros na unidade pedida → 400 (`O indicador mvi não tem registros em ocorrencias.`). |
 | `recorte` | `total`, `todos` ou lista de ids | `total` | `total`: só registros sem recorte. `todos`: totais e recortes. Ids: só esses recortes (sem o total). `todos`/`total` não se misturam com ids. |
 | `situacao` | lista de `informado`, `inexistente`, `nao_disponivel` | todas | — |
 | `ordenar` | lista de campos (4.7.3) | ordem padrão | Prefixo `-` inverte. |
+
+`unidade=padrao` segue a mesma lógica de `recorte=total`: sem pedido explícito, nunca se
+misturam vítimas e ocorrências do mesmo crime, o que levaria a somas sem sentido no cliente.
 
 Agrupador sem registros em `indicador` (hoje `furto`) **sem** `incluir_subtipos=true` → 400
 (`O indicador furto não tem registros próprios; use incluir_subtipos=true.`). Isso impede que a
@@ -358,17 +396,19 @@ Misturar Brasil, regiões e UFs na mesma resposta é o mesmo risco de dupla cont
 | `indicador` | `indicador` | Pela `ordem` do indicador, não alfabética. |
 | `localidade` | `localidade` | Ordem canônica (1.1). |
 | `recorte` | `recorte` | Total primeiro, depois por `chave`. |
+| `unidade` | `unidade` | `vitimas` antes de `ocorrencias`. |
 | `valor` | `valor` | |
 | `taxa` | `taxa.valor` | Taxa arredondada a 2 casas (1.2). |
 | `variacao_valor` | `variacao.valor_pct` | Arredondada a 2 casas. |
 | `variacao_taxa` | `variacao.taxa_pct` | Arredondada a 2 casas. |
+| `participacao` | `participacao.valor_pct` | Arredondada a 2 casas. |
 
-- **Ordem padrão:** `indicador`, `localidade`, `recorte`, `ano`.
+- **Ordem padrão:** `indicador`, `localidade`, `recorte`, `unidade`, `ano`.
 - O critério pedido vem primeiro; a ordem padrão completa o desempate, e `id` fecha. Assim a
   paginação é estável.
 - **Nulos sempre ao final**, nas duas direções (`ordenar=taxa` e `ordenar=-taxa`).
 - Campo fora da tabela → 400. Campo repetido (`ordenar=ano,-ano`) → 400.
-- Taxa e variação são **anotadas no SQL** (`queries.py`), e a ordenação e a paginação acontecem no
+- Taxa, variação e participação são **anotadas no SQL** (`queries.py`), e a ordenação e a paginação acontecem no
   banco. Nunca ordenar em Python uma lista paginada.
 
 #### 4.7.4 Formato do registro
@@ -378,8 +418,9 @@ Misturar Brasil, regiões e UFs na mesma resposta é o mesmo risco de dupla cont
   "id": 18342,
   "ano": 2025,
   "localidade": {"nivel": "uf", "codigo": "BA", "codigo_ibge": "29", "nome": "Bahia"},
-  "indicador": {"slug": "mvi", "nome": "Mortes Violentas Intencionais", "unidade": "vitimas"},
+  "indicador": {"slug": "mvi", "nome": "Mortes Violentas Intencionais"},
   "recorte": null,
+  "unidade": "vitimas",
   "valor": "5800",
   "situacao": "informado",
   "metodo": "publicado",
@@ -387,6 +428,7 @@ Misturar Brasil, regiões e UFs na mesma resposta é o mesmo risco de dupla cont
            "fonte": {"id": 5, "nome": "IBGE – Estimativas da população residente"}},
   "taxa_publicada": "40.9415826",
   "variacao": {"ano_referencia": 2024, "valor_pct": "-3.10", "taxa_pct": "-3.60"},
+  "participacao": {"referencia": null, "valor_pct": null},
   "fonte": {"id": 2, "nome": "Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP)"},
   "observacao": null
 }
@@ -403,7 +445,8 @@ As 27 UFs ordenadas por um indicador em um ano. Sem paginação. Brasil e regiõ
 | :--- | :--- | :--- | :--- |
 | `indicador` | sim | — | **Um** slug. Agrupador (`furto`) → 400. |
 | `ano` | não | último ano com registros do indicador (hoje 2025) | **Um** ano. Ano sem registros do indicador → 400. |
-| `criterio` | não | `taxa` | `taxa` ou `valor`. |
+| `criterio` | não | `taxa` | `taxa`, `valor` ou `participacao`. |
+| `unidade` | não | `unidade_padrao` do indicador | **Uma**: `vitimas` ou `ocorrencias`. Unidade sem registros do indicador → 400. |
 | `recorte` | não | `total` | `total` ou **um** id de recorte. `todos` ou lista → 400. |
 
 Não aceita `uf`, `regiao`, `nivel` nem `ordenar` (→ 400). Filtrar o ranking por região fica para
@@ -415,14 +458,16 @@ uma versão futura, como parâmetro opcional.
 - UF com o critério nulo (`nao_disponivel`, ou taxa sem denominador) vem ao final, com
   `posicao: null`, em ordem de sigla. `inexistente` (valor 0) entra na classificação.
 - Empate em posição: desempata por sigla.
-- `criterio=taxa` em indicador sem base de taxa (unidade percentual) → 400.
+- `criterio=taxa` em indicador sem base de taxa → 400. `criterio=participacao` sem referência
+  (indicador-raiz sem recorte, ou filho de agrupador) → 400.
 
 ```json
 {
-  "indicador": {"slug": "mvi", "nome": "Mortes Violentas Intencionais", "unidade": "vitimas",
+  "indicador": {"slug": "mvi", "nome": "Mortes Violentas Intencionais",
                 "base_taxa": "100 mil habitantes"},
   "ano": 2025,
   "criterio": "taxa",
+  "unidade": "vitimas",
   "recorte": null,
   "results": [
     {"posicao": 1,
@@ -430,12 +475,15 @@ uma versão futura, como parâmetro opcional.
      "valor": "…", "situacao": "informado", "metodo": "publicado",
      "taxa": {"valor": "…", "base": "100 mil habitantes", "origem": "calculada", "fonte": {"id": 5, "nome": "…"}},
      "variacao": {"ano_referencia": 2024, "valor_pct": "…", "taxa_pct": "…"},
+     "participacao": {"referencia": null, "valor_pct": null},
      "fonte": {"id": 2, "nome": "…"},
      "observacao": null}
   ]
 }
 ```
-`results` tem sempre 27 itens.
+`results` tem sempre 27 itens. Exemplo com participação: `indicador=morte-intervencao-policial&
+criterio=participacao` classifica as UFs pela parcela das MVI causada por intervenção policial
+(o mesmo da T09).
 
 ### 4.9 `/comparacao/`
 
@@ -446,14 +494,16 @@ Série de uma UF ao lado da sua região e do Brasil (RF13). Sem paginação.
 | `uf` | sim | — | **Uma** sigla de UF. A região é a da UF. |
 | `indicador` | sim | — | **Um** slug. Agrupador → 400. |
 | `ano_min`, `ano_max` | não | primeiro e último ano com registros do indicador | Intervalo fechado. Sem registros no intervalo → 400. |
+| `unidade` | não | `unidade_padrao` do indicador | **Uma**: `vitimas` ou `ocorrencias`. Unidade sem registros do indicador → 400. |
 | `recorte` | não | `total` | `total` ou **um** id. |
 
 Não aceita `ano` (use `ano_min` = `ano_max`), `nivel`, `regiao` nem `ordenar`.
 
 ```json
 {
-  "indicador": {"slug": "feminicidio", "nome": "Feminicídio", "unidade": "vitimas",
+  "indicador": {"slug": "feminicidio", "nome": "Feminicídio",
                 "base_taxa": "100 mil mulheres"},
+  "unidade": "vitimas",
   "recorte": null,
   "ano_min": 2024,
   "ano_max": 2025,
@@ -461,7 +511,7 @@ Não aceita `ano` (use `ano_min` = `ano_max`), `nivel`, `regiao` nem `ordenar`.
     {"localidade": {"nivel": "uf", "codigo": "BA", "codigo_ibge": "29", "nome": "Bahia"},
      "pontos": [
        {"ano": 2024, "valor": "…", "situacao": "informado", "metodo": "publicado",
-        "taxa": {…}, "variacao": {…}, "fonte": {…}, "observacao": null},
+        "taxa": {…}, "variacao": {…}, "participacao": {…}, "fonte": {…}, "observacao": null},
        {"ano": 2025, "…": "…"}
      ]},
     {"localidade": {"nivel": "regiao", "codigo": "NE", "codigo_ibge": "2", "nome": "Nordeste"},
@@ -474,8 +524,8 @@ Não aceita `ano` (use `ano_min` = `ano_max`), `nivel`, `regiao` nem `ordenar`.
 - `series` tem sempre 3 itens, nesta ordem: UF, região, Brasil.
 - `pontos` em ordem crescente de ano, com os **mesmos anos** nas três séries (a importação garante
   as 33 localidades em todos os anos de cada indicador; há teste).
-- Cada ponto tem os mesmos campos de um registro, menos `id`, `localidade`, `indicador` e
-  `recorte`, que já estão no nível de cima.
+- Cada ponto tem os mesmos campos de um registro, menos `id`, `localidade`, `indicador`,
+  `recorte` e `unidade`, que já estão no nível de cima.
 
 ### 4.10 `/metadados/`
 
@@ -492,8 +542,7 @@ além de `formato=json`.
   "niveis": ["pais", "regiao", "uf"],
   "unidades": [
     {"codigo": "vitimas", "nome": "Número de vítimas"},
-    {"codigo": "ocorrencias", "nome": "Número de ocorrências"},
-    {"codigo": "percentual", "nome": "Percentual"}
+    {"codigo": "ocorrencias", "nome": "Número de ocorrências"}
   ],
   "situacoes": [
     {"codigo": "informado", "nome": "Informado"},
@@ -506,7 +555,8 @@ além de `formato=json`.
   ],
   "fontes": [{"id": 2, "nome": "…"}],
   "indicadores": [
-    {"slug": "mvi", "nome": "…", "unidade": "vitimas", "base_taxa": "100 mil habitantes",
+    {"slug": "mvi", "nome": "…", "unidade_padrao": "vitimas", "unidades": ["vitimas"],
+     "base_taxa": "100 mil habitantes",
      "possui_registros": true, "anos": [2012, 2013, "…", 2025], "recortes": [],
      "subtipos": [
        {"slug": "homicidio-doloso", "…": "…",
@@ -554,12 +604,13 @@ além de `formato=json`.
 
 Objetos aninhados viram colunas com o caminho unido por `_` (`taxa.valor` → `taxa_valor`).
 Exceções: `fonte` e `taxa.fonte` viram só o **nome** (`fonte`, `taxa_fonte`); `recorte` vira
-`recorte_id` e `recorte_rotulo` (os itens não entram); o indicador vira `indicador_slug`,
-`indicador_nome`, `indicador_unidade`. A ordem das colunas abaixo é contrato.
+`recorte_id` e `recorte_rotulo` (os itens não entram); o indicador vira `indicador_slug` e
+`indicador_nome`; `participacao.referencia` vira `participacao_tipo` e `participacao_indicador`.
+A ordem das colunas abaixo é contrato.
 
 **`/registros/`** — uma linha por registro, na mesma ordem da versão JSON.
 ```
-id,ano,localidade_nivel,localidade_codigo,localidade_codigo_ibge,localidade_nome,indicador_slug,indicador_nome,indicador_unidade,recorte_id,recorte_rotulo,valor,situacao,metodo,taxa_valor,taxa_base,taxa_origem,taxa_fonte,taxa_publicada,variacao_ano_referencia,variacao_valor_pct,variacao_taxa_pct,fonte,observacao
+id,ano,localidade_nivel,localidade_codigo,localidade_codigo_ibge,localidade_nome,indicador_slug,indicador_nome,recorte_id,recorte_rotulo,unidade,valor,situacao,metodo,taxa_valor,taxa_base,taxa_origem,taxa_fonte,taxa_publicada,variacao_ano_referencia,variacao_valor_pct,variacao_taxa_pct,participacao_tipo,participacao_indicador,participacao_valor_pct,fonte,observacao
 ```
 
 **`/populacao/`**
@@ -570,12 +621,12 @@ id,ano,localidade_nivel,localidade_codigo,localidade_codigo_ibge,localidade_nome
 **`/ranking/`** — uma linha por UF; o contexto da consulta se repete em cada linha, porque o CSV
 não tem onde guardá-lo.
 ```
-ano,indicador_slug,indicador_nome,indicador_unidade,criterio,recorte_id,recorte_rotulo,posicao,localidade_nivel,localidade_codigo,localidade_codigo_ibge,localidade_nome,valor,situacao,metodo,taxa_valor,taxa_base,taxa_origem,taxa_fonte,variacao_ano_referencia,variacao_valor_pct,variacao_taxa_pct,fonte,observacao
+ano,indicador_slug,indicador_nome,unidade,criterio,recorte_id,recorte_rotulo,posicao,localidade_nivel,localidade_codigo,localidade_codigo_ibge,localidade_nome,valor,situacao,metodo,taxa_valor,taxa_base,taxa_origem,taxa_fonte,variacao_ano_referencia,variacao_valor_pct,variacao_taxa_pct,participacao_tipo,participacao_indicador,participacao_valor_pct,fonte,observacao
 ```
 
 **`/comparacao/`** — formato longo: uma linha por (série, ano), séries na ordem UF, região, Brasil.
 ```
-indicador_slug,indicador_nome,indicador_unidade,recorte_id,recorte_rotulo,localidade_nivel,localidade_codigo,localidade_codigo_ibge,localidade_nome,ano,valor,situacao,metodo,taxa_valor,taxa_base,taxa_origem,taxa_fonte,variacao_ano_referencia,variacao_valor_pct,variacao_taxa_pct,fonte,observacao
+indicador_slug,indicador_nome,unidade,recorte_id,recorte_rotulo,localidade_nivel,localidade_codigo,localidade_codigo_ibge,localidade_nome,ano,valor,situacao,metodo,taxa_valor,taxa_base,taxa_origem,taxa_fonte,variacao_ano_referencia,variacao_valor_pct,variacao_taxa_pct,participacao_tipo,participacao_indicador,participacao_valor_pct,fonte,observacao
 ```
 
 `fonte`, `taxa_fonte` e `situacao` estão em todas as linhas (RF11, RNF12).
@@ -625,6 +676,12 @@ Cada item vira ao menos um teste em `backend/tests/api/` (os de cálculo também
 - [ ] `recorte` padrão `total` não traz recortes; `todos` traz; id inexistente → 400.
 - [ ] `incluir_subtipos=true` em `homicidio-doloso` traz `homicidio-mulheres` e `feminicidio`.
 - [ ] `indicador=furto` sem `incluir_subtipos` → 400; com ele, só `furto-veiculo` e `furto-celular`.
+- [ ] `unidade` padrão: `homicidio-doloso` sai só em vítimas; `unidade=todas` traz vítimas e
+      ocorrências; `indicador=mvi&unidade=ocorrencias` → 400; ranking e comparação ecoam a
+      unidade resolvida.
+- [ ] Participação: MDIP total ÷ MVI e feminicídio ÷ homicídio de mulheres batem com a T09 e a T21
+      (até 1e-6, antes de arredondar); recorte da T08 ÷ total de MDIP; `mvi` e `furto-*` com
+      `referencia: null`; homicídio doloso em ocorrências com `valor_pct: null`.
 - [ ] Formatos decimais da tabela 1.2, inclusive arredondamento meio para longe do zero (`x.xx5`)
       e ausência de `-0.00`.
 - [ ] `ordenar=taxa` e `ordenar=-taxa` com nulos ao final; paginação sem itens repetidos nem
