@@ -78,8 +78,7 @@ MVI (indicador-síntese), letalidade policial (mortes decorrentes de intervenç�
 - Localidade = `estado_id` **ou** `regiao_id`, exatamente um (`CheckConstraint`).
 - Unicidade em (estado, regiao, indicador, recorte, ano) com `UniqueConstraint(..., nulls_distinct=False)`.
 - `INDICADORES` em hierarquia (`indicador_pai`): MVI → homicídio doloso (→ feminicídio), latrocínio, lesão corporal seguida de morte, morte decorrente de intervenção policial; Roubo → veículo, celular, transeunte, residência, estabelecimento comercial, instituição financeira, carga; Furto (agrupador sem registros) → veículo, celular.
-- O total do Brasil e os indicadores-pai são **importados**, nunca somados. Os totais regionais são importados da T02 (MVI) e, nos demais indicadores, **calculados na importação como soma das UFs** da região (mesmo método do FBSP), marcados com `metodo = soma_ufs` (ADR 0002).
-- `metodo`: `publicado` (lido da planilha) | `soma_ufs` (total regional calculado pelo projeto).
+- Indicadores-pai e o total do Brasil são **importados**, nunca somados. As regiões são importadas quando o FBSP as publica (só MVI, T02); nos demais casos são **calculadas na importação** como soma das UFs (`metodo = soma_ufs`). Se alguma UF da região estiver "...", a região fica nula (`nao_disponivel`). Detalhes em `docs/importacao.md`, seção 4.9.
 - Características de vítimas ou agentes são **recortes** (`RECORTES` + `RECORTE_ITENS`, pares dimensão/valor, ex.: corporação = Polícia Militar + situação = em serviço). Registro sem recorte = total.
 - `situacao`: `informado` | `inexistente` (“-” → valor 0) | `nao_disponivel` (“...” → valor nulo). Notas do FBSP vão em `observacao`.
 - `unidade` (vítimas, ocorrências, percentual) e `base_taxa` (100 mil habitantes; 100 mil mulheres; 100 mil veículos; 100 instituições) ficam em `INDICADORES`.
@@ -93,6 +92,7 @@ Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
 5. Nova entidade `CARGAS` (versao, sha256 de cada arquivo, iniciada_em, concluida_em, status, total_registros) — alimenta `/metadados/` e o ETag.
 6. `POPULACAO` recebe a mesma CHECK de localidade e unicidade (localidade, ano) `NULLS NOT DISTINCT`.
 7. `taxa_publicada` guarda a taxa **sem arredondar**, como publicada (a planilha traz até 15 casas): `DecimalField(max_digits=24, decimal_places=12)`. `valor`: `DecimalField(max_digits=18, decimal_places=4)`.
+8. `REGISTROS_ANUAIS.metodo` (`publicado` | `soma_ufs`, padrão `publicado`) — distingue o valor lido da planilha do agregado regional calculado pelo projeto; exposto na API (RF11). `origem` com `max_length=200`, porque a linha regional lista as células somadas.
 
 ### Contrato da API (resumo)
 - Prefixo `/api/v1/`, `URLPathVersioning`. Mudança incompatível → `/api/v2/`; a v1 continua no ar.
@@ -163,7 +163,8 @@ projeto-integrador-ii/
 │   │   │   ├── mapeamento.py          ✚ especificação declarativa das tabelas T02–T21
 │   │   │   ├── leitores/              # fbsp.py (openpyxl), ibge.py (pandas + odfpy)
 │   │   │   ├── normalizacao.py        # “-”, “...”, Decimal  ✎ notas de rodapé e localidades
-│   │   │   ├── agregacao.py           ✚ totais regionais por soma das UFs + conferência dos agregados publicados
+│   │   │   ├── linhas.py              # Chave, Linha, Localidade (nível + sigla), Metodo
+│   │   │   ├── agregacao.py           # regiões = soma das UFs; confere Brasil e T02
 │   │   │   ├── gravacao.py            ✚ upsert idempotente
 │   │   │   ├── validacao.py           # relatório de divergências  ✎ tolerância (ver Pendências)
 │   │   │   └── management/commands/
@@ -208,7 +209,7 @@ Resumo:
 - **Só conferência:** T01 (MVI 2024–2025; idêntica a T02).
 - **Ignoradas:** painéis (P), gráficos (G), quadros (Q) e as demais tabelas.
 - **População:** aba `BRASIL_E_UFs` dos dois `.ods` do IBGE, já com totais de regiões e Brasil.
-- **Volume esperado:** 1.782 registros (1.582 lidos da planilha + 200 totais regionais por soma das UFs) e 66 linhas de população. Contagem diferente é falha da importação.
+- **Volume esperado:** 1.782 registros (1.582 lidos + 200 regionais calculados, dos quais 24 nulos) e 66 linhas de população. Contagem diferente é falha da importação.
 
 Algoritmo:
 1. Conferir o SHA-256 dos arquivos contra `dados/README.md`; se divergir, abortar.
@@ -221,7 +222,7 @@ Algoritmo:
    3. montar o caminho de cabeçalho de cada coluna;
    4. ler as linhas até "Fonte:", pulando as linhas em branco;
    5. resolver a localidade e normalizar as células.
-6. Conferir os agregados publicados (Brasil em todas as tabelas, regiões na T02) contra a soma das UFs; divergência aborta. Calcular os totais regionais das tabelas que não os publicam (`metodo = soma_ufs`).
+6. Agregar as regiões (`agregacao.agregar`): conferir Brasil e regiões publicadas contra a soma das UFs (diverge → aborta) e calcular as regiões que faltam.
 7. Gravar com upsert (`bulk_create(update_conflicts=True, ...)`), sem apagar nem duplicar.
 8. Gerar o relatório em `dados/relatorios/` e fechar a `Carga`.
 
@@ -235,7 +236,7 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 1. Nunca editar arquivos em `dados/brutos/`. Nova versão de planilha = novo arquivo + novo hash em `dados/README.md`, em commit próprio.
 2. O banco só é escrito pelo comando `importar_anuario` (e pelas migrações). Nada de endpoints de escrita, admin com escrita, fixtures em produção ou SQL manual.
 3. A importação é idempotente: rodar duas vezes não muda contagem nem `id` de nenhum registro. Há teste para isso.
-4. O total do Brasil, os totais regionais publicados (T02) e os indicadores-pai são **importados**, nunca somados. A única soma permitida é o total regional das tabelas que não o publicam: só números absolutos, dentro do mesmo indicador, recorte e ano, com `metodo = soma_ufs`; nunca entre um indicador e seus subtipos, nunca média de taxas, e região com alguma UF `nao_disponivel` fica `nao_disponivel` (sem soma parcial). Regras completas em `docs/importacao.md` §4.8.
+4. Indicadores-pai e o total do Brasil são **importados**, nunca somados a partir dos subtipos ou das UFs. Regiões: importadas quando publicadas (T02); nos demais casos, calculadas só em `agregacao.py`, como soma das UFs da região, apenas para unidade absoluta (vítimas, ocorrências), no mesmo indicador, recorte e ano, com `metodo = soma_ufs`. Se alguma UF da região estiver "...", a região fica `NULL`/`nao_disponivel`, nunca soma parcial. Taxas nunca são somadas nem tiradas em média. Agregado publicado que divirja da soma das UFs que informaram aborta a importação.
 5. Não existe total de furtos. O indicador `furto` não tem registros próprios; nunca calcule nem exiba um total. Os blocos "Roubo e Furto" das tabelas T11 e T12 não são importados.
 6. “-” → `valor = 0`, `situacao = inexistente`. “...” → `valor = NULL`, `situacao = nao_disponivel`. Célula vazia → `nao_disponivel` com aviso no relatório. Qualquer outro texto aborta a importação com a célula de origem na mensagem.
 7. Localidade não reconhecida, coluna de cabeçalho não resolvida ou contagem diferente da esperada abortam a importação. Nunca pular linha em silêncio.
