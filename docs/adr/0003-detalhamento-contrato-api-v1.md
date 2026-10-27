@@ -1,7 +1,7 @@
 # 0003. Detalhamento do contrato da API v1
 
 - Data: 2026-10-27
-- Situação: proposta
+- Situação: aceita
 
 ## Contexto
 
@@ -32,6 +32,10 @@ API. Em resumo:
 4. **Decimais:** valores absolutos inteiros; `taxa.valor` e variações com 2 casas fixas;
    `taxa_publicada` com a precisão guardada. Arredondamento meio para longe do zero, só na
    serialização; `queries.py` devolve precisão total. Ordenação e ranking usam o valor arredondado.
+   `taxa_publicada` é guardada com 12 casas (`NUMERIC(24, 12)`), arredondada na importação. A
+   planilha traz até 17 dígitos significativos (até 18 casas), ruído do ponto flutuante do Excel;
+   guardar tudo exigiria 18 casas. Aceita-se o erro de até 5e-13, irrelevante para a análise, em
+   troca de não reproduzir a célula dígito a dígito.
 5. **Hierarquia:** `homicidio-doloso` → `homicidio-mulheres` → `feminicidio`. A hierarquia
    significa "contido em", nunca "soma de". `INDICADORES` ganha `ordem` (pré-ordem).
 6. **Nível:** sem `nivel`, a resposta tem um nível só (`uf` por padrão); misturar níveis exige
@@ -51,6 +55,9 @@ API. Em resumo:
   com unicidade (`tipo`, `codigo_ibge`) em `REGIOES`.
 - `apps/registros/queries.py` deixa de arredondar a variação a 4 casas (o teste correspondente
   muda); o arredondamento passa a um campo de serializer próprio (`apps/api/v1/campos.py`).
+- O relatório de validação não distingue diferenças menores que 5e-13 entre a taxa calculada e a
+  publicada (hoje elas são da ordem de 1e-14); com a tolerância sugerida de 1e-6 (pendência 5),
+  isso não muda nenhum resultado.
 - `docs/importacao.md` (seção 2) e `catalogo/referencia.py` passam a ter `feminicidio` como filho
   de `homicidio-mulheres`.
 - `Vary: Accept` e ETag por representação passam a ser exigidos, porque a mesma URL serve JSON e
