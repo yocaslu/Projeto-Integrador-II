@@ -21,7 +21,7 @@ A planilha tem 134 abas. Os nomes seguem um prefixo:
 Padrão das tabelas por UF (verificado em T01–T21):
 
 - Linha 1: `TABELA nn`; linha 2: título; linha 3: abrangência e período.
-- Linha 5: âncora na coluna A (`Brasil e Unidades da Federação` ou `Brasil, Regiões e Unidades da Federação`; às vezes com espaço inicial).
+- Linha 5: âncora na coluna A (`Brasil e Unidades da Federação` ou `Brasil, Regiões e Unidades da Federação`; às vezes com espaço inicial). A linha 3 começa com o mesmo texto (`Brasil e Unidades da Federação – 2024-2025`), por isso a regex da âncora é fechada com `\s*$` (seção 4.2).
 - Linhas seguintes do cabeçalho:
   - bloco (indicador ou recorte);
   - sub-bloco (ex.: `Nº de Vítimas`);
@@ -70,9 +70,18 @@ Localidades (`localidades/referencia.py`), com os códigos do IBGE em texto:
 | `regiao` | `N`, `NE`, `SE`, `S`, `CO` | Norte, Nordeste, Sudeste, Sul, Centro-Oeste | `1` a `5` |
 | UF | `RO` … `DF` | nome oficial | `11` … `53` (2 dígitos) |
 
-Fontes (`FONTES`):
-- **Registros:** "Secretarias Estaduais de Segurança Pública e/ou Defesa Social", com compilação do FBSP. A linha "Fonte:" completa de cada tabela fica em `docs/` e no relatório, não em cada registro.
-- **Bases de taxa:** IBGE (população; projeções por sexo para a base de mulheres), Senatran (frota de veículos) e Banco Central (instituições financeiras), ligadas aos indicadores pela `base_taxa`.
+Fontes (`catalogo/referencia.py`, ADR 0005), criadas antes das demais referências, nesta ordem, com `update_or_create(slug=…)`, para que um banco limpo reproduza os mesmos `id`s:
+
+| `id` | `slug` | Nome | Usada em |
+| ---: | :--- | :--- | :--- |
+| 1 | `secretarias-seguranca` | Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP) | `fonte` de todos os registros, inclusive `soma_ufs` |
+| 2 | `ibge-estimativas` | IBGE – Estimativas da população residente | `fonte` da `POPULACAO`; `fonte_taxa` da base 100 mil habitantes |
+| 3 | `ibge-projecoes` | IBGE – Projeções da população | `fonte_taxa` da base 100 mil mulheres (T21) |
+| 4 | `senatran-frota` | Senatran – Frota de veículos | `fonte_taxa` da base 100 mil veículos (T11, nota 2) |
+| 5 | `bcb-instituicoes` | Banco Central do Brasil – Instituições financeiras | `fonte_taxa` da base 100 instituições (T15, nota 3) |
+
+- Cada indicador recebe `fonte_taxa` junto com `base_taxa` (nula só em `furto`, que não tem base). É de lá que a API tira `taxa.fonte`.
+- A linha "Fonte:" completa de cada tabela fica no relatório, não em cada registro. Descrições e URLs das fontes: ADR 0005.
 
 ---
 
@@ -175,7 +184,7 @@ importar_anuario [--dados DIR] [--relatorio DIR] [--somente-validar] [--estrito]
 ├─ 2. versao = sha256(concat(hashes))[:12]
 ├─ 3. carga = Carga(versao, status="em_andamento")
 ├─ 4. with transaction.atomic():
-│     ├─ carregar_referencias()                 # regiões, UFs, fontes, indicadores (update_or_create)
+│     ├─ carregar_referencias()                 # fontes (primeiro, ordem fixa), regiões, UFs, indicadores (update_or_create)
 │     ├─ populacao = ibge.ler(DIR)              # {(localidade, ano): Decimal}; 66 linhas
 │     ├─ gravar_populacao(populacao)
 │     ├─ linhas = [l for t in TABELAS for l in fbsp.ler_tabela(wb, t)]
@@ -218,6 +227,10 @@ class Tabela:
     localidades_esperadas: int                  # 28 ou 33
     conferencia: bool = False                   # True = só alimenta o relatório (T01, T09)
 
+ANCORA_UFS = r"^\s*Brasil e Unidades da Federa[çc][ãa]o\s*$"
+ANCORA_REGIOES = r"^\s*Brasil, Regi[õo]es e Unidades da Federa[çc][ãa]o\s*$"
+# Fechadas com \s*$: a linha 3 (abrangência) começa com o mesmo texto e vem antes da âncora.
+
 GRUPOS = {r"^ns\.? absolutos|^n[úu]mero absoluto": "valor",
           r"^taxas?\b": "taxa",
           r"^varia[çc][ãa]o": "variacao",
@@ -225,12 +238,12 @@ GRUPOS = {r"^ns\.? absolutos|^n[úu]mero absoluto": "valor",
 
 TABELAS = (
     Tabela(
-        aba="T02", ancora=r"^\s*Brasil, Regi[õo]es e Unidades", linhas_cabecalho=3,
+        aba="T02", ancora=ANCORA_REGIOES, linhas_cabecalho=3,
         blocos=(Bloco("mvi", (r"Mortes Violentas Intencionais",)),),
         anos=tuple(range(2012, 2026)), localidades_esperadas=33,
     ),
     Tabela(
-        aba="T03", ancora=r"^\s*Brasil e Unidades", linhas_cabecalho=4,
+        aba="T03", ancora=ANCORA_UFS, linhas_cabecalho=4,
         blocos=(
             Bloco("homicidio-doloso", (r"Homic[íi]dios dolosos", r"V[íi]timas"), unidade="vitimas"),
             Bloco("homicidio-doloso", (r"Homic[íi]dios dolosos", r"Ocorr[êe]ncias"), unidade="ocorrencias"),
@@ -238,7 +251,7 @@ TABELAS = (
         anos=(2024, 2025), localidades_esperadas=28,
     ),
     Tabela(
-        aba="T08", ancora=r"^\s*Brasil e Unidades", linhas_cabecalho=3,
+        aba="T08", ancora=ANCORA_UFS, linhas_cabecalho=3,
         blocos=(
             Bloco("morte-intervencao-policial", (r"Policiais Civis em servi[çc]o",),
                   recorte=(("corporacao", "Polícia Civil"), ("situacao_policial", "Em serviço")),
@@ -254,6 +267,7 @@ TABELAS = (
 
 Regras:
 - Nenhuma posição fixa de linha ou coluna. Mudou o layout? O teste contra a planilha real quebra e aponta a tabela.
+- A âncora é ancorada nos dois lados (`^…$`). Sem o `$`, ela casaria com a linha 3 (`Brasil e Unidades da Federação – 2024-2025`) e o cabeçalho seria lido duas linhas acima do lugar. Há teste: em cada tabela, a âncora fica na linha 5.
 - Toda coluna dentro da largura do cabeçalho precisa casar com exatamente um bloco **ou** estar listada como ignorada (`ignorar=(r"Roubo e Furto",)`). Uma coluna órfã aborta a importação.
 - Todo slug usado precisa existir em `catalogo/referencia.py` (há teste para isso).
 
@@ -263,7 +277,7 @@ Regras:
 def ler_tabela(wb, t: Tabela) -> list[Linha]:
     ws = wb[t.aba]                                    # load_workbook(data_only=True), sem read_only: precisa de merged_cells
     grade = expandir_mescladas(ws)                    # valor da célula superior esquerda replicado no intervalo
-    r_ancora = achar_ancora(grade, t.ancora)          # 1ª linha cuja coluna A casa a regex
+    r_ancora = achar_ancora(grade, t.ancora)          # 1ª linha cuja coluna A casa a regex inteira (^…$)
     colunas = resolver_colunas(grade, r_ancora, t)    # {col: (bloco, grupo, ano, marcas)}; órfã → erro
     notas = ler_notas(grade)                          # {"3": "Atualização das informações ..."}
     linhas: dict[Chave, Linha] = {}
@@ -298,7 +312,11 @@ def ler_tabela(wb, t: Tabela) -> list[Linha]:
 - Classifica o grupo pelo penúltimo nível com `GRUPOS`.
 - Extrai o ano do último nível com `^(\d{4})`; o restante do texto vira marca (`"2024 (3)"` → `2024`, `["3"]`).
 - Também extrai marcas do grupo (`"Taxa (2)"` → `["2"]`).
-- Confere a base da taxa pela nota do grupo: a nota `(2)` precisa casar com a `base_taxa` do indicador (`100 mil habitantes`, `100 mil mulheres`, `100 mil veículos`, `100 instituições`). Base diferente aborta a importação; é a proteção contra blocos trocados entre edições.
+- Confere a base de cada grupo de taxa pelo próprio cabeçalho. O texto que declara a base é:
+  - o **rótulo do grupo**, quando ele não tem marca de nota (`Taxas por 100 mil habitantes`, T02);
+  - senão, o **texto da nota cuja marca está no grupo**, qualquer que seja o número: `Taxa (2)` → nota (2) em T01, T03, T08, T11, T12 e T21; `Taxa (1)` → nota (1) em T04, T05 e T14; na T15, `Taxa (3)` (instituição financeira) → nota (3) e `Taxa (4)` (carga e total) → nota (4), enquanto a nota (2) da T15 é uma definição de instituição financeira.
+
+  Esse texto precisa conter a `base_taxa` do indicador do bloco (`100 mil habitantes`, `100 mil mulheres`, `100 mil veículos`, `100 instituições`), comparado sem acento, sem diferença de caixa e com espaços normalizados (`Taxa por 100 instituições financeiras` casa com `100 instituições`). Grupo de taxa sem base no rótulo e sem marca, marca sem nota correspondente ou base diferente abortam a importação; é a proteção contra blocos trocados entre edições. Nunca se procura uma nota de número fixo. Conferido na planilha versionada: todas as colunas de taxa das tabelas lidas passam.
 
 `NOTAS_GENERICAS`: notas que não descrevem o dado e não vão para `observacao`, como "Taxa por 100 mil habitantes". A nota "Atualização das informações publicadas no Anuário…" **vai**, porque informa que o valor de 2024 foi revisado (RF11).
 
@@ -445,7 +463,7 @@ Todas as comparações são feitas em **precisão total, sem arredondar nenhum l
 | Participação calculada × proporção publicada | T09 (MDIP ÷ MVI × 100) e T21 (feminicídio ÷ homicídio de mulheres × 100), mesma regra da `participacao` da API | divergência acima da tolerância |
 | Conferência T01 × T02 | MVI 2024–2025, valor e taxa | divergência |
 | Conferência T09 × T02 e T08 | Absolutos de MVI e de MDIP (total), 2024–2025 | divergência |
-| Base da taxa × nota do grupo | Texto da nota casa com `base_taxa` | erro (aborta) |
+| Base da taxa × cabeçalho | Rótulo do grupo, ou nota marcada no grupo, contém a `base_taxa` (seção 4.3) | erro (aborta) |
 | Soma dos recortes × total (T08) | Informativo | informação |
 | Soma das UFs × Brasil | Soma das UFs que informaram contra o total publicado (seção 4.8), por unidade | erro (aborta) |
 | Soma das UFs × região publicada | T02, todos os anos (seção 4.8) | erro (aborta) |
@@ -463,4 +481,4 @@ Colunas do CSV: `tabela, origem, indicador, localidade, recorte, unidade, ano, v
 - `tests/fixtures/`: planilha reduzida gerada a partir da real (T02, T03 com vítimas e ocorrências, T08, T09, T15 e T21 com Brasil + 3 UFs), mantendo células mescladas, `-`, `...`, linhas em branco e notas.
 - Unitários: `normalizar_celula`, `separar_marcas`, `resolver_localidade`, `resolver_colunas`, `obter_recorte`, leitura do IBGE, `agregacao.agregar` (`tests/importacao/test_agregacao.py`).
 - Integração: comando completo sobre a fixture; idempotência (duas execuções); rollback (célula inválida → nada gravado); relatório com divergência plantada.
-- Contra a planilha real (`@pytest.mark.planilha_real`): toda âncora é encontrada, nenhuma coluna órfã, 1.750 registros lidos + 230 regionais calculados (24 nulos) = 1.980, e 66 populações; nenhuma divergência entre agregados publicados e a soma das UFs; e nenhuma divergência acima de 1e-6 no relatório (taxas de vítimas e ocorrências, variação da taxa, T09 e proporção da T21 — conferido na planilha versionada).
+- Contra a planilha real (`@pytest.mark.planilha_real`): toda âncora é encontrada na linha 5, toda coluna de taxa passa na conferência da base, nenhuma coluna órfã, 1.750 registros lidos + 230 regionais calculados (24 nulos) = 1.980, e 66 populações; nenhuma divergência entre agregados publicados e a soma das UFs; e nenhuma divergência acima de 1e-6 no relatório (taxas de vítimas e ocorrências, variação da taxa, T09 e proporção da T21 — conferido na planilha versionada).

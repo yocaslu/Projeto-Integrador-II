@@ -1,7 +1,7 @@
 # Contrato da API — v1
 
 Transcrição detalhada da seção "Contrato da API" do Roteiro, com as decisões que o Roteiro deixava
-em aberto (ADR 0003). **Este arquivo é a fonte da verdade da API v1**: o Roteiro é o texto
+em aberto (ADRs 0003, 0004 e 0005). **Este arquivo é a fonte da verdade da API v1**: o Roteiro é o texto
 acadêmico e resume o que está aqui. Se o código divergir deste documento, pare e pergunte antes de
 mudar qualquer um dos lados.
 
@@ -143,20 +143,23 @@ e participação são sempre calculadas **dentro da mesma unidade**.
 
 **Fonte (resumo)**
 ```json
-{"id": 2, "nome": "Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP)"}
+{"id": 1, "nome": "Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP)"}
 ```
+O catálogo completo, com ids fixos, está na seção 4.5.
 
 **Taxa** — sempre presente.
 ```json
 {"valor": "40.94", "base": "100 mil habitantes", "origem": "calculada",
- "fonte": {"id": 5, "nome": "IBGE – Estimativas da população residente"}}
+ "fonte": {"id": 2, "nome": "IBGE – Estimativas da população residente"}}
 ```
 - `base`: `base_taxa` do indicador; `null` quando o indicador não tem base (hoje, nenhum indicador com registros).
 - `origem`: `calculada` (valor ÷ população do IBGE × 100 000, quando a base é 100 mil habitantes
   e há população para o ano e a localidade) ou `publicada` (`taxa_publicada` arredondada). `null`
   quando `valor` é `null`.
-- `fonte`: fonte do **denominador** (IBGE para habitantes e mulheres, Senatran para veículos,
-  Banco Central para instituições). `null` quando `valor` é `null`.
+- `fonte`: fonte do **denominador**, lida de `INDICADORES.fonte_taxa` (ADR 0005), a mesma para
+  `origem` `calculada` e `publicada`: IBGE – Estimativas para habitantes, IBGE – Projeções para
+  mulheres, Senatran para veículos, Banco Central para instituições. `null` quando `valor` é
+  `null`.
 - `valor` é `null` quando: `situacao = nao_disponivel`; ou não há denominador
   (ex.: totais regionais de feminicídio, de roubo e furto de veículo e de roubo a instituição
   financeira).
@@ -246,6 +249,7 @@ seção 4.3.1). Lista **plana**; a árvore aninhada está em `/metadados/`.
 [
   {"slug": "feminicidio", "nome": "Feminicídio", "descricao": "…",
    "unidade_padrao": "vitimas", "unidades": ["vitimas"], "base_taxa": "100 mil mulheres",
+   "fonte_taxa": {"id": 3, "nome": "IBGE – Projeções da população"},
    "indicador_pai": "homicidio-mulheres", "subtipos": [],
    "possui_registros": true, "anos": [2024, 2025],
    "recortes": []}
@@ -256,6 +260,8 @@ seção 4.3.1). Lista **plana**; a árvore aninhada está em `/metadados/`.
   (`["vitimas", "ocorrencias"]` em homicídio doloso, latrocínio e lesão corporal seguida de
   morte; `[]` em agrupadores).
 - `base_taxa`: texto de `INDICADORES.base_taxa`, ou `null`.
+- `fonte_taxa`: fonte do denominador da taxa (`{"id", "nome"}`), ou `null` quando `base_taxa` é
+  `null` (ADR 0005).
 - `indicador_pai`: slug ou `null`. `subtipos`: slugs dos **filhos diretos**, na ordem.
 - `possui_registros`: `false` para agrupadores sem dado próprio (hoje só `furto`).
 - `anos`: anos com registros do indicador (em qualquer unidade), crescentes. `[]` em agrupadores.
@@ -316,9 +322,22 @@ Parâmetros: `indicador` (lista de slugs). Ordem: por `chave`.
 Parâmetros: nenhum além de `formato=json`. Ordem: `id`.
 
 ```json
-[{"id": 5, "nome": "IBGE – Estimativas da população residente",
-  "descricao": "…", "url": "https://www.ibge.gov.br/…"}]
+[{"id": 2, "slug": "ibge-estimativas", "nome": "IBGE – Estimativas da população residente",
+  "descricao": "Estimativas da população residente no Brasil e nas Unidades da Federação, com data de referência em 1º de julho de 2024 e de 2025.",
+  "url": "https://www.ibge.gov.br/estatisticas/sociais/populacao/9103-estimativas-de-populacao.html"}]
 ```
+
+Catálogo fixo, criado nesta ordem por `catalogo/referencia.py` com `update_or_create(slug=…)`,
+de modo que um banco limpo reproduz os mesmos `id`s (há teste). Fonte nova entra no fim; nenhuma é
+reordenada nem removida. Descrições e URLs completas no ADR 0005.
+
+| `id` | `slug` | `nome` | Onde aparece |
+| ---: | :--- | :--- | :--- |
+| 1 | `secretarias-seguranca` | Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP) | `fonte` de todo registro |
+| 2 | `ibge-estimativas` | IBGE – Estimativas da população residente | `fonte` da população; `taxa.fonte` na base 100 mil habitantes |
+| 3 | `ibge-projecoes` | IBGE – Projeções da população | `taxa.fonte` na base 100 mil mulheres |
+| 4 | `senatran-frota` | Senatran – Frota de veículos | `taxa.fonte` na base 100 mil veículos |
+| 5 | `bcb-instituicoes` | Banco Central do Brasil – Instituições financeiras | `taxa.fonte` na base 100 instituições |
 
 ### 4.6 `/populacao/`
 
@@ -327,14 +346,18 @@ reservados. `nivel`, `uf` e `regiao` seguem exatamente a regra da seção 4.7.2.
 
 `ordenar` aceita `ano`, `localidade`, `valor`. Ordem padrão: `localidade` (canônica), `ano`.
 
+Sem `nivel`, `uf` nem `regiao`, a resposta traz só as UFs: 54 linhas (27 UFs × 2 anos). As 66
+linhas (33 localidades × 2 anos) exigem a lista explícita, como no exemplo:
+
+`GET /api/v1/populacao/?nivel=pais,regiao,uf`
 ```json
 {
   "count": 66, "next": null, "previous": null,
   "results": [
-    {"id": 1, "ano": 2025,
+    {"id": 1, "ano": 2024,
      "localidade": {"nivel": "pais", "codigo": "BR", "codigo_ibge": "1", "nome": "Brasil"},
-     "valor": "213421037",
-     "fonte": {"id": 5, "nome": "IBGE – Estimativas da população residente"}}
+     "valor": "212583750",
+     "fonte": {"id": 2, "nome": "IBGE – Estimativas da população residente"}}
   ]
 }
 ```
@@ -425,11 +448,11 @@ Misturar Brasil, regiões e UFs na mesma resposta é o mesmo risco de dupla cont
   "situacao": "informado",
   "metodo": "publicado",
   "taxa": {"valor": "40.94", "base": "100 mil habitantes", "origem": "calculada",
-           "fonte": {"id": 5, "nome": "IBGE – Estimativas da população residente"}},
+           "fonte": {"id": 2, "nome": "IBGE – Estimativas da população residente"}},
   "taxa_publicada": "40.9415826",
   "variacao": {"ano_referencia": 2024, "valor_pct": "-3.10", "taxa_pct": "-3.60"},
   "participacao": {"referencia": null, "valor_pct": null},
-  "fonte": {"id": 2, "nome": "Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP)"},
+  "fonte": {"id": 1, "nome": "Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP)"},
   "observacao": null
 }
 ```
@@ -473,10 +496,10 @@ uma versão futura, como parâmetro opcional.
     {"posicao": 1,
      "localidade": {"nivel": "uf", "codigo": "AP", "codigo_ibge": "16", "nome": "Amapá"},
      "valor": "…", "situacao": "informado", "metodo": "publicado",
-     "taxa": {"valor": "…", "base": "100 mil habitantes", "origem": "calculada", "fonte": {"id": 5, "nome": "…"}},
+     "taxa": {"valor": "…", "base": "100 mil habitantes", "origem": "calculada", "fonte": {"id": 2, "nome": "…"}},
      "variacao": {"ano_referencia": 2024, "valor_pct": "…", "taxa_pct": "…"},
      "participacao": {"referencia": null, "valor_pct": null},
-     "fonte": {"id": 2, "nome": "…"},
+     "fonte": {"id": 1, "nome": "…"},
      "observacao": null}
   ]
 }
@@ -535,7 +558,7 @@ além de `formato=json`.
 ```json
 {
   "carga": {
-    "versao": "…", "concluida_em": "2026-10-27T15:04:05-03:00", "total_registros": 1782,
+    "versao": "…", "concluida_em": "2026-10-27T15:04:05-03:00", "total_registros": 1980,
     "arquivos": [{"nome": "anuario-2026.xlsx", "sha256": "6b01f4ed…"}]
   },
   "anos": {"min": 2012, "max": 2025},
@@ -553,10 +576,11 @@ além de `formato=json`.
     {"codigo": "publicado", "nome": "Publicado pelo FBSP"},
     {"codigo": "soma_ufs", "nome": "Calculado pelo projeto como soma das UFs"}
   ],
-  "fontes": [{"id": 2, "nome": "…"}],
+  "fontes": [{"id": 1, "slug": "secretarias-seguranca", "nome": "…"}, "…"],
   "indicadores": [
     {"slug": "mvi", "nome": "…", "unidade_padrao": "vitimas", "unidades": ["vitimas"],
      "base_taxa": "100 mil habitantes",
+     "fonte_taxa": {"id": 2, "nome": "IBGE – Estimativas da população residente"},
      "possui_registros": true, "anos": [2012, 2013, "…", 2025], "recortes": [],
      "subtipos": [
        {"slug": "homicidio-doloso", "…": "…",
@@ -567,7 +591,10 @@ além de `formato=json`.
 }
 ```
 - `indicadores` é a **árvore aninhada** (raízes por `ordem`; `subtipos` com objetos completos).
-- `carga` vem da última `Carga` com status concluído. `versao` é a mesma usada no ETag.
+- `carga` vem da carga atual: a `Carga` com status concluído e o maior `concluida_em`. `versao` é
+  a mesma usada no ETag. Sem nenhuma carga concluída, `/metadados/` responde 503 como os demais
+  recursos (seção 7.1); `carga` nunca é `null`.
+- `fontes`: o catálogo inteiro (seção 4.5), com `id`, `slug` e `nome`.
 
 ---
 
@@ -648,6 +675,7 @@ dois).
 | 406 | `formato` diferente de `json`/`csv`; CSV pedido em recurso sem CSV; `Accept` sem nenhum tipo suportado. |
 | 429 | Limite de requisições, se a limitação para anônimos for ativada. |
 | 500 | Erro interno, corpo genérico, sem detalhes técnicos. |
+| 503 | Nenhuma carga de dados concluída (seção 7.1). |
 
 Note que `tamanho` acima de 1000 é **400**, e não o corte silencioso que o DRF faz por padrão.
 
@@ -661,6 +689,25 @@ Note que `tamanho` acima de 1000 é **400**, e não o corte silencioso que o DRF
 - `Vary: Accept`, porque a mesma URL tem duas representações.
 - `If-None-Match` com o ETag atual → 304 sem corpo.
 - Erros (4xx e 5xx) não levam `Cache-Control: public`.
+
+### 7.1 Sem carga concluída
+
+A versão do ETag é a da carga atual: a `Carga` com status concluído e o maior `concluida_em`.
+Cargas em andamento ou que falharam são ignoradas; como a importação roda em uma transação, a carga
+anterior continua valendo até a nova ser concluída (ADR 0005).
+
+Se não existe nenhuma carga concluída, **todo recurso de `/api/v1/`** responde **503** em Problem
+Details, com `Cache-Control: no-store` e sem `ETag`:
+
+```json
+{"type": "about:blank", "title": "Serviço indisponível", "status": 503,
+ "detail": "Nenhuma carga de dados foi concluída. Tente novamente mais tarde."}
+```
+
+- A verificação vem depois do 405 (método) e do 406 (formato) e antes da validação dos parâmetros.
+- `/api/v1/schema/`, `/api/v1/docs/` e `/api/v1/redoc/` não dependem dos dados e continuam com 200.
+- Motivo: listas vazias com 200 ficariam 24 h em cache em clientes e intermediários, e não haveria
+  intervalo de anos para validar `ano` (seção 2, regra 8).
 
 ---
 
@@ -693,4 +740,8 @@ Cada item vira ao menos um teste em `backend/tests/api/` (os de cálculo também
 - [ ] CSV: cabeçalho exato de cada recurso (comparar a string), sem BOM, `\r\n`, campo vazio para
       nulo, erro de validação em JSON, limite de linhas (com o limite reduzido no teste).
 - [ ] Cache: `ETag` diferente para JSON e CSV, `Vary: Accept`, 304 com `If-None-Match`.
+- [ ] Sem carga concluída: 503 em todos os recursos, com `Cache-Control: no-store` e sem `ETag`;
+      `schema`, `docs` e `redoc` com 200. Carga em andamento ou com falha não muda o ETag vigente.
+- [ ] Fontes: banco limpo cria os ids 1 a 5 na ordem da seção 4.5; `taxa.fonte` de cada base de
+      taxa é a fonte da tabela do ADR 0005; `taxa.fonte` nula quando `taxa.valor` é nulo.
 - [ ] Nenhuma consulta N+1 (`django_assert_max_num_queries`) em listas, ranking e comparação.

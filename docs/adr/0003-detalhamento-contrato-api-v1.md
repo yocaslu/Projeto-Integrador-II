@@ -43,7 +43,9 @@ API. Em resumo:
    diferente de `uf` → 400; `uf` e `regiao` são mutuamente exclusivos.
 7. **Ordenação:** `ano`, `indicador`, `localidade`, `recorte`, `valor`, `taxa`, `variacao_valor`,
    `variacao_taxa`; padrão `indicador, localidade, recorte, ano`; desempate final por `id`; nulos
-   ao final; taxa e variação anotadas no SQL.
+   ao final; taxa e variação anotadas no SQL. (Atualizado em 2026-10-27 pelo ADR 0004: a lista
+   inclui também `unidade` e `participacao`, e o padrão passa a `indicador, localidade, recorte,
+   unidade, ano`; participação também anotada no SQL. A lista vigente é a do contrato, 4.7.3.)
 8. **CSV:** em `/registros/`, `/populacao/`, `/ranking/` e `/comparacao/`; RFC 4180, UTF-8 sem
    BOM; colunas fixas, achatadas por `_`. `formato` é parâmetro reservado em todos os recursos;
    `pagina`/`tamanho` só nos paginados e só em JSON.
