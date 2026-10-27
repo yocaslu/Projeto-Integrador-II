@@ -2,9 +2,13 @@
 
 Configurado em REST_FRAMEWORK["EXCEPTION_HANDLER"]. Erros 500 não passam por aqui: o Django
 devolve uma resposta genérica, sem detalhes técnicos.
+
+O corpo do erro sai sempre em JSON, mesmo quando a view negociou outro formato (CSV, ou o YAML
+do esquema OpenAPI), como manda o contrato da API (seção 6; CLAUDE.md, regra 27).
 """
 
 from rest_framework import exceptions
+from rest_framework.renderers import JSONRenderer
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
@@ -53,6 +57,11 @@ def manipulador_problem_details(exc, context):
         corpo["erros"] = _lista_de_erros(exc.detail)
     else:
         corpo["detail"] = str(getattr(exc, "detail", titulo))
+
+    # O DRF renderiza a resposta com o renderizador negociado pela view; trocá-lo aqui garante
+    # o corpo em JSON qualquer que seja o formato pedido.
+    request.accepted_renderer = JSONRenderer()
+    request.accepted_media_type = TIPO_CONTEUDO
 
     cabecalhos = {
         nome: resposta[nome] for nome in CABECALHOS_PRESERVADOS if resposta.has_header(nome)
