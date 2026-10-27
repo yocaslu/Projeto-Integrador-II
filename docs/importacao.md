@@ -37,26 +37,37 @@ Padrão das tabelas por UF (verificado em T01–T21):
 
 ## 2. Indicadores (`catalogo/referencia.py`)
 
-| Slug | Nome | Pai | Unidade | Base da taxa | Tabela dona |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `mvi` | Mortes Violentas Intencionais | — | vítimas | 100 mil habitantes | T02 |
-| `homicidio-doloso` | Homicídio doloso | `mvi` | vítimas | 100 mil habitantes | T03 |
-| `homicidio-mulheres` | Homicídio de mulheres (incluindo feminicídios) | `homicidio-doloso` | vítimas | 100 mil mulheres | T21 *(pendência 3)* |
-| `feminicidio` | Feminicídio | `homicidio-doloso` | vítimas | 100 mil mulheres | T21 |
-| `latrocinio` | Latrocínio | `mvi` | vítimas | 100 mil habitantes | T04 |
-| `lesao-corporal-seguida-de-morte` | Lesão corporal seguida de morte | `mvi` | vítimas | 100 mil habitantes | T05 |
-| `morte-intervencao-policial` | Morte decorrente de intervenção policial | `mvi` | vítimas | 100 mil habitantes | T08 |
-| `roubo` | Roubo (total) | — | ocorrências | 100 mil habitantes | T15 |
-| `roubo-veiculo` | Roubo de veículo | `roubo` | ocorrências | 100 mil veículos | T11 |
-| `roubo-celular` | Roubo de celular | `roubo` | ocorrências | 100 mil habitantes | T12 |
-| `roubo-transeunte` | Roubo a transeunte | `roubo` | ocorrências | 100 mil habitantes | T14 |
-| `roubo-residencia` | Roubo a residência | `roubo` | ocorrências | 100 mil habitantes | T14 |
-| `roubo-estabelecimento-comercial` | Roubo a estabelecimento comercial | `roubo` | ocorrências | 100 mil habitantes | T14 |
-| `roubo-instituicao-financeira` | Roubo a instituição financeira | `roubo` | ocorrências | 100 instituições | T15 |
-| `roubo-carga` | Roubo de carga | `roubo` | ocorrências | 100 mil habitantes | T15 |
-| `furto` | Furto | — | ocorrências | — | **sem registros** |
-| `furto-veiculo` | Furto de veículo | `furto` | ocorrências | 100 mil veículos | T11 |
-| `furto-celular` | Furto de celular | `furto` | ocorrências | 100 mil habitantes | T12 |
+| Ordem | Slug | Nome | Pai | Unidade | Base da taxa | Tabela dona |
+| ---: | :--- | :--- | :--- | :--- | :--- | :--- |
+| 1 | `mvi` | Mortes Violentas Intencionais | — | vítimas | 100 mil habitantes | T02 |
+| 2 | `homicidio-doloso` | Homicídio doloso | `mvi` | vítimas | 100 mil habitantes | T03 |
+| 3 | `homicidio-mulheres` | Homicídio de mulheres (incluindo feminicídios) | `homicidio-doloso` | vítimas | 100 mil mulheres | T21 |
+| 4 | `feminicidio` | Feminicídio | `homicidio-mulheres` | vítimas | 100 mil mulheres | T21 |
+| 5 | `latrocinio` | Latrocínio | `mvi` | vítimas | 100 mil habitantes | T04 |
+| 6 | `lesao-corporal-seguida-de-morte` | Lesão corporal seguida de morte | `mvi` | vítimas | 100 mil habitantes | T05 |
+| 7 | `morte-intervencao-policial` | Morte decorrente de intervenção policial | `mvi` | vítimas | 100 mil habitantes | T08 |
+| 8 | `roubo` | Roubo (total) | — | ocorrências | 100 mil habitantes | T15 |
+| 9 | `roubo-veiculo` | Roubo de veículo | `roubo` | ocorrências | 100 mil veículos | T11 |
+| 10 | `roubo-celular` | Roubo de celular | `roubo` | ocorrências | 100 mil habitantes | T12 |
+| 11 | `roubo-transeunte` | Roubo a transeunte | `roubo` | ocorrências | 100 mil habitantes | T14 |
+| 12 | `roubo-residencia` | Roubo a residência | `roubo` | ocorrências | 100 mil habitantes | T14 |
+| 13 | `roubo-estabelecimento-comercial` | Roubo a estabelecimento comercial | `roubo` | ocorrências | 100 mil habitantes | T14 |
+| 14 | `roubo-instituicao-financeira` | Roubo a instituição financeira | `roubo` | ocorrências | 100 instituições | T15 |
+| 15 | `roubo-carga` | Roubo de carga | `roubo` | ocorrências | 100 mil habitantes | T15 |
+| 16 | `furto` | Furto | — | ocorrências | — | **sem registros** |
+| 17 | `furto-veiculo` | Furto de veículo | `furto` | ocorrências | 100 mil veículos | T11 |
+| 18 | `furto-celular` | Furto de celular | `furto` | ocorrências | 100 mil habitantes | T12 |
+
+- `ordem` é a pré-ordem da hierarquia, usada pela API para ordenar indicadores (`INDICADORES.ordem`, inteiro único).
+- Hierarquia (ADR 0003): `feminicidio` é filho de `homicidio-mulheres`, que é filho de `homicidio-doloso`. A T03 define homicídio doloso como "incluindo feminicídios", e a T21 publica a "proporção de feminicídios em relação aos homicídios de mulheres". A hierarquia significa "contido em", nunca "soma de".
+
+Localidades (`localidades/referencia.py`), com os códigos do IBGE em texto:
+
+| Tipo | Sigla | Nome | `codigo_ibge` |
+| :--- | :--- | :--- | :--- |
+| `pais` | `BR` | Brasil | `1` |
+| `regiao` | `N`, `NE`, `SE`, `S`, `CO` | Norte, Nordeste, Sudeste, Sul, Centro-Oeste | `1` a `5` |
+| UF | `RO` … `DF` | nome oficial | `11` … `53` (2 dígitos) |
 
 Fontes (`FONTES`):
 - **Registros:** "Secretarias Estaduais de Segurança Pública e/ou Defesa Social", com compilação do FBSP. A linha "Fonte:" completa de cada tabela fica em `docs/` e no relatório, não em cada registro.
