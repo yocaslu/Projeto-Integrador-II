@@ -2,7 +2,12 @@
 
 Plataforma de análise do **20º Anuário Brasileiro de Segurança Pública (FBSP, 2026)**: banco relacional (PostgreSQL 18) → API REST somente leitura (Django + DRF) → dashboard (React). Licença AGPL-3.0.
 
-**Fonte da verdade:** o documento "Roteiro" do projeto (seções Requisitos, Contrato da API e Modelagem de dados), até que seja transcrito para `docs/contrato-api.md` e `docs/modelagem.md`. A importação está especificada em `docs/importacao.md`. Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qualquer um dos lados.
+**Fonte da verdade:**
+- **API:** `docs/contrato-api.md` (transcrição detalhada do Roteiro, com as decisões do ADR 0003). Prevalece sobre o resumo deste arquivo e sobre o texto do Roteiro.
+- **Importação:** `docs/importacao.md`.
+- **Requisitos e modelagem:** o documento "Roteiro" do projeto, até que a modelagem seja transcrita para `docs/modelagem.md`.
+
+Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qualquer um dos lados.
 
 ---
 
@@ -12,6 +17,13 @@ Plataforma de análise do **20º Anuário Brasileiro de Segurança Pública (FBS
 
 - O frontend (React, Recharts, Leaflet) e os testes de ponta a ponta (Playwright + axe-core) **vêm depois**. Não crie, altere nem instale nada em `frontend/` ou `e2e/` sem pedido explícito, e suba só `db` e `backend` no Docker Compose.
 - Ordem de entrega: `localidades` e `catalogo` → `importacao` (comando + relatório de validação) → `registros` (consultas de taxa, variação, ranking, comparação) → `api` (endpoints, filtros, erros, CSV, cache) → documentação OpenAPI.
+- Ordem dentro da app `api` (cada passo com os testes da seção 8 do contrato que lhe cabem):
+  1. `parametros.py` (regras comuns da seção 2 do contrato) e `campos.py` (decimais da seção 1.2);
+  2. catálogos: `/regioes/`, `/estados/`, `/fontes/`, `/indicadores/`, `/recortes/`;
+  3. `queries.py`: anotação de taxa e variação no SQL (precisão total), ordem canônica de localidades;
+  4. `/registros/` (filtros, regra de nível, ordenação, paginação) e `/populacao/`;
+  5. `/ranking/` e `/comparacao/`; 6. `/metadados/`;
+  7. CSV (negociação, colunas, limite, streaming); 8. cache (ETag, `Vary`, 304); 9. `openapi.yaml`.
 - Requisitos em foco: RF01, RF02, RF05, RF07–RF13, RNF02, RNF05–RNF12. Os de interface (RF03, RF04, RF06, RNF01, RNF03) ficam para a fase do frontend, mas o contrato da API já precisa atendê-los.
 
 ---
@@ -77,7 +89,7 @@ MVI (indicador-síntese), letalidade policial (mortes decorrentes de intervenç�
 - `REGISTROS_ANUAIS` é a tabela de fatos: um valor por (localidade, indicador, recorte, ano), com fonte.
 - Localidade = `estado_id` **ou** `regiao_id`, exatamente um (`CheckConstraint`).
 - Unicidade em (estado, regiao, indicador, recorte, ano) com `UniqueConstraint(..., nulls_distinct=False)`.
-- `INDICADORES` em hierarquia (`indicador_pai`): MVI → homicídio doloso (→ feminicídio), latrocínio, lesão corporal seguida de morte, morte decorrente de intervenção policial; Roubo → veículo, celular, transeunte, residência, estabelecimento comercial, instituição financeira, carga; Furto (agrupador sem registros) → veículo, celular.
+- `INDICADORES` em hierarquia (`indicador_pai`), que significa "contido em", nunca "soma de": MVI → homicídio doloso (→ homicídio de mulheres → feminicídio), latrocínio, lesão corporal seguida de morte, morte decorrente de intervenção policial; Roubo → veículo, celular, transeunte, residência, estabelecimento comercial, instituição financeira, carga; Furto (agrupador sem registros) → veículo, celular.
 - Indicadores-pai e o total do Brasil são **importados**, nunca somados. As regiões são importadas quando o FBSP as publica (só MVI, T02); nos demais casos são **calculadas na importação** como soma das UFs (`metodo = soma_ufs`). Se alguma UF da região estiver "...", a região fica nula (`nao_disponivel`). Detalhes em `docs/importacao.md`, seção 4.9.
 - Características de vítimas ou agentes são **recortes** (`RECORTES` + `RECORTE_ITENS`, pares dimensão/valor, ex.: corporação = Polícia Militar + situação = em serviço). Registro sem recorte = total.
 - `situacao`: `informado` | `inexistente` (“-” → valor 0) | `nao_disponivel` (“...” → valor nulo). Notas do FBSP vão em `observacao`.
@@ -86,27 +98,56 @@ MVI (indicador-síntese), letalidade policial (mortes decorrentes de intervenç�
 
 Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
 1. `INDICADORES.slug` (único) — exigido pelo contrato da API.
-2. `ESTADOS.codigo_ibge` e `REGIOES.codigo_ibge` — chave estável para a malha do mapa e para cruzamentos futuros.
+2. `ESTADOS.codigo_ibge` e `REGIOES.codigo_ibge` — chave estável para a malha do mapa e para cruzamentos futuros. `CharField(max_length=2)` com os códigos reais do IBGE: UFs `11`…`53` (únicos), regiões `1`…`5`, Brasil `1`; em `REGIOES`, unicidade por (`tipo`, `codigo_ibge`). Siglas em `REGIOES`: `BR`, `N`, `NE`, `SE`, `S`, `CO`.
 3. `RECORTES.chave` (única, pares ordenados `dimensao=valor;...`) — torna a criação de recortes idempotente.
 4. `REGISTROS_ANUAIS.origem` (ex.: `T08!D15`) — rastreabilidade de cada valor até a célula da planilha; nulo quando `metodo = soma_ufs`.
 5. Nova entidade `CARGAS` (versao, sha256 de cada arquivo, iniciada_em, concluida_em, status, total_registros) — alimenta `/metadados/` e o ETag.
 6. `POPULACAO` recebe a mesma CHECK de localidade e unicidade (localidade, ano) `NULLS NOT DISTINCT`.
 7. `taxa_publicada` guarda a taxa **sem arredondar**, como publicada (a planilha traz até 15 casas): `DecimalField(max_digits=24, decimal_places=12)`. `valor`: `DecimalField(max_digits=18, decimal_places=4)`.
 8. `REGISTROS_ANUAIS.metodo` (`publicado` | `soma_ufs`, padrão `publicado`) — distingue o valor lido da planilha do agregado regional calculado pelo projeto; exposto na API (RF11). `origem` com `max_length=200`, porque a linha regional lista as células somadas.
+9. `INDICADORES.ordem` (inteiro único, pré-ordem da hierarquia) — ordena indicadores na API; valores em `docs/importacao.md`, seção 2 (ADR 0003).
 
 ### Contrato da API (resumo)
-- Prefixo `/api/v1/`, `URLPathVersioning`. Mudança incompatível → `/api/v2/`; a v1 continua no ar.
+
+Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seção do recurso antes de escrever o serializer, o filtro ou o teste dele, e não decida no código nada que o contrato já define.
+
+**Geral**
+- Prefixo `/api/v1/`, `URLPathVersioning`. Mudança incompatível → `/api/v2/`; a v1 continua no ar. Acrescentar campo, parâmetro opcional ou recurso é compatível.
 - Só `GET`, `HEAD`, `OPTIONS`; o resto → 405.
-- Nomes em português, `snake_case`, iguais aos atributos do modelo. UF e região por sigla; indicador por slug.
-- Recursos: `regioes`, `estados`, `indicadores`, `recortes`, `fontes`, `populacao`, `registros`, `ranking`, `comparacao`, `metadados`, `schema`/`docs`/`redoc`.
-- `/registros/` aceita `nivel`, `uf`, `regiao`, `indicador`, `incluir_subtipos`, `ano`/`ano_min`/`ano_max`, `recorte` (`total` padrão | `todos` | id), `situacao`, `ordenar`; listas separadas por vírgula.
-- Cada registro traz `localidade`, `indicador`, `recorte`, `valor`, `situacao`, `metodo` (`publicado`|`soma_ufs`), `taxa` (`valor`, `base`, `origem` = `calculada`|`publicada`), `taxa_publicada`, `variacao` (`ano_referencia`, `valor_pct`, `taxa_pct`), `fonte`, `observacao`.
-- Decimais serializados como **texto** (`COERCE_DECIMAL_TO_STRING = True`).
-- JSON por padrão; CSV com `formato=csv` ou `Accept: text/csv` (streaming, máx. 50 mil linhas, colunas `fonte` e `situacao`, sem linhas de comentário).
-- Paginação por página só em `/registros/` e `/populacao/` (`pagina`, `tamanho` padrão 100, máx. 1000); demais recursos com `pagination_class = None`.
-- `/ranking/`: critério padrão `taxa`; empates com mesma posição (1, 2, 2, 4); sem dado → fim da lista, posição nula.
-- Erros em Problem Details (RFC 9457), `application/problem+json`, com lista `erros` em validações (já implementado em `apps/api/erros.py`).
-- Cache: `Cache-Control: public, max-age=86400` + ETag derivado da versão da carga.
+- Nomes em português, `snake_case`, iguais aos atributos do modelo. UF e região por sigla (aceitas sem diferença de caixa, devolvidas em maiúsculas); indicador por slug.
+- Localidade = par (`nivel`, `codigo`): `{"nivel", "codigo", "codigo_ibge", "nome"}`. Siglas `BR`, `N`, `NE`, `SE`, `S`, `CO` e as 27 UFs. Ordem canônica: Brasil, regiões por `codigo_ibge`, UFs por sigla.
+- Campo do contrato nunca é omitido: ausência = `null` (CSV: campo vazio). `taxa` e `variacao` são objetos sempre presentes.
+
+**Formatos de resposta**
+- Catálogos (`/regioes/`, `/estados/`, `/indicadores/`, `/recortes/`, `/fontes/`): array JSON na raiz, sem paginação.
+- `/registros/` e `/populacao/`: paginados (`pagina` padrão 1, `tamanho` padrão 100, máx. 1000, acima → 400), envelope `count`/`next`/`previous`/`results`.
+- `/ranking/`, `/comparacao/`, `/metadados/`: objeto, com os parâmetros efetivos (inclusive padrões resolvidos) ecoados.
+- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`, `unidade`), `recorte` (`null` | `id`, `rotulo`, `itens`), `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte`), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct`), `fonte`, `observacao`.
+
+**Decimais** (texto, `COERCE_DECIMAL_TO_STRING = True`)
+- `valor` de vítimas/ocorrências e população: inteiro (`"5800"`). `taxa.valor`, `valor_pct`, `taxa_pct`: 2 casas fixas (`"40.94"`, `"-3.10"`). `taxa_publicada`: precisão guardada, sem zeros à direita nem notação exponencial.
+- Arredondar **só** na serialização (`apps/api/v1/campos.py`), meio para longe do zero (`ROUND_HALF_UP`, igual ao `round()` do PostgreSQL). `queries.py` devolve precisão total.
+- Ordenação por taxa e ranking usam o valor **arredondado** (a API classifica pelo que mostra).
+
+**`/registros/`**
+- Parâmetros: `nivel`, `uf`, `regiao`, `indicador`, `incluir_subtipos`, `ano` | `ano_min`/`ano_max`, `recorte` (`total` padrão | `todos` | ids), `situacao`, `ordenar`. Listas por vírgula.
+- Nível: sem `nivel`, `uf` ou `regiao` → só as UFs. `uf` implica `nivel=uf`. `regiao` exige `nivel` explícito (`uf` → UFs da região; `regiao` → agregado). Mistura de níveis só por lista explícita (`nivel=pais,regiao,uf`), e então sem `uf`/`regiao`. `uf` + `regiao`, `nivel=regiao&uf=SP`, `nivel=pais&regiao=…` → 400. Tabela completa: contrato, 4.7.2.
+- `incluir_subtipos=true` exige `indicador` e traz todos os descendentes. `indicador=furto` sem ele → 400.
+- `ordenar`: `ano`, `indicador` (por `ordem`), `localidade` (canônica), `recorte`, `valor`, `taxa`, `variacao_valor`, `variacao_taxa`. Padrão `indicador, localidade, recorte, ano`; desempate final por `id`; nulos ao final nas duas direções; taxa e variação anotadas e ordenadas no SQL.
+
+**`/ranking/`**: `indicador` (um, obrigatório), `ano` (um; padrão = último ano com dados do indicador), `criterio` (`taxa` padrão | `valor`), `recorte` (`total` padrão | um id). Só as 27 UFs, decrescente, empates (1, 2, 2, 4), nulos ao final com `posicao: null`.
+
+**`/comparacao/`**: `uf` (uma, obrigatória), `indicador` (um, obrigatório), `ano_min`/`ano_max` (padrão = anos do indicador), `recorte` (`total` padrão | um id). `series` = [UF, região da UF, Brasil], cada uma com `pontos` por ano, os mesmos anos nas três.
+
+**`/metadados/`**: `carga`, `anos` (min/max), `niveis`, `unidades`, `situacoes`, `metodos`, `fontes` e a árvore aninhada de `indicadores` (com `anos` e `recortes` de cada um).
+
+**Parâmetros, CSV e erros**
+- Parâmetro desconhecido, repetido (`uf=SP&uf=RJ`) ou vazio → 400. Valor inexistente em parâmetro de consulta (`uf=XX`) → 400; 404 só para caminho (`/estados/XX/`).
+- Reservados: `formato` (`json` | `csv`) em todos os recursos; `pagina`/`tamanho` só em `/registros/` e `/populacao/` e só em JSON.
+- CSV em `/registros/`, `/populacao/`, `/ranking/`, `/comparacao/`; nos demais, `formato=csv` ou `Accept: text/csv` → 406. `formato` prevalece sobre `Accept`; formato desconhecido → 406 (não o 404 do DRF; `URL_FORMAT_OVERRIDE = "formato"`).
+- CSV: RFC 4180, UTF-8 sem BOM, `\r\n`, cabeçalho sempre, nulo = vazio, mesmos arredondamentos do JSON, streaming, máx. 50 mil linhas (acima → 400), achatamento por `_` (`taxa_valor`), `fonte`/`taxa_fonte` só com o nome. **Colunas e ordem são contrato** (contrato, 5.3).
+- Erros em Problem Details (RFC 9457), `application/problem+json`, com lista `erros` em validações (já em `apps/api/erros.py`), sempre em JSON, mesmo quando o CSV foi pedido.
+- Cache: `Cache-Control: public, max-age=86400`, `ETag: W/"<versao>-<json|csv>"`, `Vary: Accept`, 304 com `If-None-Match`.
 
 ### Requisitos (referência rápida)
 
@@ -172,6 +213,8 @@ projeto-integrador-ii/
 │   │   │       └── inspecionar_planilha.py ✚ lista abas, âncoras e caminhos de cabeçalho
 │   │   └── api/
 │   │       ├── v1/                    # urls, views, serializers, filtros
+│   │       │   ├── parametros.py      ✚ validação comum: desconhecido/repetido/vazio → 400, listas, nível × uf × região
+│   │       │   └── campos.py          ✚ campos decimais (inteiro, 2 casas, precisão total) e objetos localidade/taxa/variação
 │   │       └── erros.py · renderizadores.py · paginacao.py · cache.py
 │   └── tests/                         # espelha apps/: importacao/, registros/, api/, desempenho/
 │       ├── localidades/ · catalogo/   ✚
@@ -186,7 +229,8 @@ projeto-integrador-ii/
 ├── infra/                             # compose.prod.yml, traefik/
 ├── docs/
 │   ├── importacao.md                  # mapeamento da planilha e algoritmo de extração
-│   ├── contrato-api.md · modelagem.md ✚ transcrição das seções do roteiro
+│   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
+│   ├── modelagem.md                   ✚ transcrição da seção do roteiro
 │   ├── api/openapi.yaml               ✚ esquema gerado e versionado (diff verificado no CI)
 │   └── adr/                           # 0001-monorepo.md, 0002-totais-regionais.md  ✚ ajustes do modelo, ...
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
@@ -257,17 +301,21 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 18. `recorte=total` é o padrão de `/registros/`; nunca devolver totais misturados com recortes por omissão.
 19. Decimais saem como texto; nunca `coerce_to_string=False`.
 20. Todo erro sai em Problem Details; 500 sem detalhes técnicos no corpo.
-21. Toda resposta e todo CSV indicam a fonte (FBSP/IBGE). CSV sem linhas de comentário.
-22. Mudança incompatível no contrato exige `/api/v2/`; a v1 não quebra.
+21. Todo valor e toda taxa saem com a fonte (`fonte` do valor; `taxa.fonte` do denominador), em JSON e em CSV. CSV sem linhas de comentário. Catálogos não precisam de fonte por item.
+22. Mudança incompatível no contrato exige `/api/v2/`; a v1 não quebra. São incompatíveis: renomear ou remover campo, mudar tipo, casas decimais, valor padrão, regra de validação ou a ordem das colunas do CSV.
 23. Nenhuma consulta N+1: listas usam `select_related`/`prefetch_related`, e os testes de API limitam o número de queries (`django_assert_max_num_queries`).
+24. Sem `nivel` explícito, `/registros/` e `/populacao/` devolvem um único nível de localidade; misturar Brasil, regiões e UFs só com lista explícita em `nivel` (mesma lógica da regra 18).
+25. Arredondamento só na serialização, em `apps/api/v1/campos.py`, com `ROUND_HALF_UP`; `queries.py` nunca arredonda. Ordenação e ranking usam o valor já arredondado.
+26. Toda lista tem ordem total e determinística: o critério pedido, depois a ordem padrão do recurso, depois `id`. Ordenação e paginação acontecem no banco, nunca em Python.
+27. Erro sai sempre em JSON (Problem Details), mesmo quando o cliente pediu CSV. Toda resposta 200 leva `Vary: Accept`.
 
 **Código e repositório**
-24. Configuração só por variável de ambiente; nenhuma credencial, `.env` ou dump de banco no Git. Toda variável nova entra em `.env.example` sem valor real.
-25. Dependências só via `uv add`/`uv remove`, com `uv.lock` no mesmo commit. Versões da stack mudam apenas com ADR.
-26. Código, nomes de modelos, campos, parâmetros e mensagens em português; identificadores sem acento.
-27. Nada de `print` no código da app: use `logging` (comandos usam `self.stdout`).
-28. Ruff é a única fonte de estilo; nada de `# noqa` sem justificativa na mesma linha.
-29. Não reduzir o limite de cobertura (75%) nem marcar testes como `skip` para passar o CI.
+28. Configuração só por variável de ambiente; nenhuma credencial, `.env` ou dump de banco no Git. Toda variável nova entra em `.env.example` sem valor real.
+29. Dependências só via `uv add`/`uv remove`, com `uv.lock` no mesmo commit. Versões da stack mudam apenas com ADR.
+30. Código, nomes de modelos, campos, parâmetros e mensagens em português; identificadores sem acento.
+31. Nada de `print` no código da app: use `logging` (comandos usam `self.stdout`).
+32. Ruff é a única fonte de estilo; nada de `# noqa` sem justificativa na mesma linha.
+33. Não reduzir o limite de cobertura (75%) nem marcar testes como `skip` para passar o CI.
 
 ---
 
@@ -277,10 +325,11 @@ Não decida sozinho; pergunte antes de implementar o que depender destes pontos.
 
 1. **Número de ocorrências** (T03–T05 trazem vítimas e ocorrências): por ora só **vítimas** é importado, coerente com a definição de MVI. Importar ocorrências exigiria indicadores próprios.
 2. **Perfis de vítimas** (sexo, raça/cor, faixa etária): estão nos painéis P01, P03 e P06, em blocos de dados de gráfico, sem cabeçalho tabular. Ficam fora da primeira carga; se entrarem, o mapeamento será por intervalo de células fixo.
-3. **Homicídio de mulheres** (T21): proposto como `homicidio-mulheres` (filho de `homicidio-doloso`, base 100 mil mulheres). Falta decidir se o feminicídio passa a ser filho dele, e não de `homicidio-doloso`.
-4. **Casas decimais na API:** as taxas são guardadas com precisão total; falta decidir quantas casas a API expõe (sugestão: 2 em `taxa.valor` e `variacao`, precisão total em `taxa_publicada`).
+3. ~~Homicídio de mulheres~~ — **resolvida (ADR 0003):** `homicidio-doloso` → `homicidio-mulheres` → `feminicidio`.
+4. ~~Casas decimais na API~~ — **resolvida (ADR 0003):** inteiro em valores absolutos, 2 casas em `taxa.valor` e `variacao`, precisão guardada em `taxa_publicada` (contrato, seção 1.2).
 5. **Tolerância da validação:** `validacao.py` arredonda a 0,1 e tolera 0,1, mas as taxas do FBSP batem com o cálculo pela população do IBGE até ~1e-14. Sugestão: comparar com tolerância de 1e-6.
 6. **Proporções** (T09 e coluna "Proporção" da T21): derivadas de outros indicadores; não importadas por ora.
+7. **Precisão de `taxa_publicada`:** o ajuste 7 diz "sem arredondar" porque a planilha traz até 15 casas, mas `decimal_places=12` arredonda na 12ª casa ao gravar. Decidir entre aceitar 12 casas (e corrigir o texto do ajuste 7) ou usar `max_digits=27, decimal_places=15`. Afeta o que `taxa_publicada` mostra na API; decidir antes da primeira migração de `registros`.
 
 ---
 
