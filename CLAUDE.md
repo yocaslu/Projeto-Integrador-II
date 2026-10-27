@@ -72,7 +72,7 @@ URLs locais: API em `http://localhost:8000/api/v1/`, Swagger em `/api/v1/docs/`,
 ## Decisões do projeto
 
 ### Stack (versões fixadas — não atualize sem ADR)
-Python 3.14.9 · Django 6.1.2 · DRF 3.18.3 · django-filter 26.2 · drf-spectacular 0.30.0 · psycopg 3.3.6 · pandas 3.0.6 · openpyxl 3.1.5 · odfpy 1.4.1 · PostgreSQL 18 · uv 0.13.5 (`uv.lock` versionado) · Ruff 0.17.2 · pytest 9.1.1 + pytest-django 4.14.0 + pytest-cov 7.1.0 · Gunicorn 26.2.2 · Docker + Traefik em VMs Ubuntu Server 26.04 (Proxmox VE) · GitHub Actions. Frontend (fase seguinte): React, Recharts, Leaflet, Jest, Playwright + axe-core.
+Python 3.14 (série; qualquer 3.14.x, ADR 0006) · Django 6.1.2 · DRF 3.18.3 · django-filter 26.2 · drf-spectacular 0.30.0 · psycopg 3.3.6 · pandas 3.0.6 · openpyxl 3.1.5 · odfpy 1.4.1 · PostgreSQL 18 · uv 0.13.5 (`uv.lock` versionado) · Ruff 0.17.2 · pytest 9.1.1 + pytest-django 4.14.0 + pytest-cov 7.1.0 · Gunicorn 26.2.0 (ADR 0006) · Docker + Traefik em VMs Ubuntu Server 26.04 (Proxmox VE) · GitHub Actions. Frontend (fase seguinte): React, Recharts, Leaflet, Jest, Playwright + axe-core.
 
 ### Arquitetura
 - REST (Fielding, 2000): cliente e servidor desacoplados; a API é um produto reutilizável por terceiros, não um detalhe do dashboard.
