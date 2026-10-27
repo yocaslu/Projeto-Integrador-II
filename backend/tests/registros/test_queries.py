@@ -4,7 +4,15 @@ from apps.registros.queries import posicoes_com_empate, variacao_percentual
 
 
 def test_variacao_percentual():
-    assert variacao_percentual(Decimal(90), Decimal(100)) == Decimal("-10.0000")
+    assert variacao_percentual(Decimal(90), Decimal(100)) == Decimal(-10)
+
+
+def test_variacao_percentual_em_precisao_total():
+    """queries.py não arredonda; as 2 casas são aplicadas só na serialização (contrato, 1.2)."""
+    variacao = variacao_percentual(Decimal(2), Decimal(3))
+
+    assert variacao == (Decimal(2) - Decimal(3)) / Decimal(3) * 100
+    assert variacao.as_tuple().exponent < -4
 
 
 def test_variacao_nula_sem_base():
