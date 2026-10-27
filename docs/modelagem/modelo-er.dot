@@ -1,0 +1,108 @@
+digraph ER {
+  graph [rankdir=LR, splines=spline, nodesep=0.55, ranksep=0.9, bgcolor="white", pad=0.3, fontname="DejaVu Sans"];
+  node  [shape=plaintext, fontname="DejaVu Sans", fontsize=11];
+  edge  [color="#555555", penwidth=1.2, arrowsize=0.8, dir=both, arrowtail=none];
+
+  REGIOES [label=<
+  <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
+    <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>REGIOES</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">nome</TD></TR>
+    <TR><TD ALIGN="LEFT">sigla</TD></TR>
+    <TR><TD ALIGN="LEFT">tipo  (regiao | pais)</TD></TR>
+  </TABLE>>];
+
+  ESTADOS [label=<
+  <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
+    <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>ESTADOS</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">uf</TD></TR>
+    <TR><TD ALIGN="LEFT">nome</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  regiao_id</TD></TR>
+  </TABLE>>];
+
+  POPULACAO [label=<
+  <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
+    <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>POPULACAO</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  estado_id  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  regiao_id  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  fonte_id</TD></TR>
+    <TR><TD ALIGN="LEFT">ano</TD></TR>
+    <TR><TD ALIGN="LEFT">valor</TD></TR>
+  </TABLE>>];
+
+  FONTES [label=<
+  <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
+    <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>FONTES</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">nome</TD></TR>
+    <TR><TD ALIGN="LEFT">descricao</TD></TR>
+    <TR><TD ALIGN="LEFT">url</TD></TR>
+  </TABLE>>];
+
+  REGISTROS [label=<
+  <TABLE BORDER="2" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#7C2D12">
+    <TR><TD BGCOLOR="#9A3412" ALIGN="CENTER"><FONT COLOR="white"><B>REGISTROS_ANUAIS</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  estado_id  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  regiao_id  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  indicador_id</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  recorte_id  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  fonte_id</TD></TR>
+    <TR><TD ALIGN="LEFT">ano</TD></TR>
+    <TR><TD ALIGN="LEFT">valor  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">taxa_publicada  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">situacao</TD></TR>
+    <TR><TD ALIGN="LEFT">metodo  (publicado | soma_ufs)</TD></TR>
+    <TR><TD ALIGN="LEFT">observacao</TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#FFF7ED"><FONT POINT-SIZE="9">CHECK: estado_id XOR regiao_id</FONT></TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#FFF7ED"><FONT POINT-SIZE="9">UNIQUE NULLS NOT DISTINCT (estado_id,<BR ALIGN="LEFT"/>regiao_id, indicador_id, recorte_id, ano)<BR ALIGN="LEFT"/></FONT></TD></TR>
+  </TABLE>>];
+
+  INDICADORES [label=<
+  <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
+    <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>INDICADORES</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">nome</TD></TR>
+    <TR><TD ALIGN="LEFT">descricao</TD></TR>
+    <TR><TD ALIGN="LEFT">unidade</TD></TR>
+    <TR><TD ALIGN="LEFT">base_taxa</TD></TR>
+    <TR><TD ALIGN="LEFT" PORT="pai">FK  indicador_pai_id  (nulo)</TD></TR>
+  </TABLE>>];
+
+  RECORTES [label=<
+  <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
+    <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>RECORTES</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">rotulo</TD></TR>
+  </TABLE>>];
+
+  RECORTE_ITENS [label=<
+  <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
+    <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>RECORTE_ITENS</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">FK  recorte_id</TD></TR>
+    <TR><TD ALIGN="LEFT">dimensao</TD></TR>
+    <TR><TD ALIGN="LEFT">valor</TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT POINT-SIZE="9">UNIQUE (recorte_id, dimensao)</FONT></TD></TR>
+  </TABLE>>];
+
+  {rank=same; REGIOES; FONTES;}
+  {rank=same; ESTADOS; POPULACAO;}
+  {rank=same; INDICADORES; RECORTES;}
+
+  /* 1:N  (arrowtail = lado 1, arrowhead = lado N) */
+  edge [arrowtail=teetee, arrowhead=crowodot];
+  REGIOES -> ESTADOS  ;
+  REGIOES -> POPULACAO;
+  ESTADOS -> POPULACAO;
+  FONTES  -> POPULACAO;
+  ESTADOS -> REGISTROS;
+  REGIOES -> REGISTROS;
+  FONTES  -> REGISTROS;
+  REGISTROS -> INDICADORES [dir=both, arrowtail=crowodot, arrowhead=teetee];
+  REGISTROS -> RECORTES    [dir=both, arrowtail=crowodot, arrowhead=teeodot];
+  RECORTES -> RECORTE_ITENS [arrowtail=teetee, arrowhead=crowtee];
+  INDICADORES:pai -> INDICADORES [arrowtail=crowodot, arrowhead=teeodot, xlabel="indicador_pai", fontname="DejaVu Sans", fontsize=9];
+}
