@@ -8,7 +8,8 @@ soma das UFs, e os totais regionais da T02 são exatamente a soma das UFs de cad
 Regras (CLAUDE.md, regra invariável 4):
 
 - só a soma geográfica (UF → região) é feita; um indicador-pai nunca é a soma dos subtipos;
-- só para unidades absolutas (vítimas, ocorrências), dentro do mesmo indicador, recorte e ano;
+- dentro do mesmo indicador, recorte, unidade e ano: vítimas e ocorrências nunca se misturam, e
+  o que é somável decide-se pela unidade da chave (ADR 0004);
 - se alguma UF da região está como "..." (não disponível), a região fica nula e não disponível,
   em vez de virar uma soma parcial;
 - a taxa da região não é somada: fica nula aqui e é calculada na consulta a partir da população
@@ -22,10 +23,10 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from decimal import Decimal
 
-from apps.importacao.linhas import Chave, Linha, Localidade, Metodo, Nivel
+from apps.importacao.linhas import Chave, Linha, Localidade, Metodo, Nivel, Unidade
 from apps.importacao.normalizacao import Situacao
 
-UNIDADES_SOMAVEIS = frozenset({"vitimas", "ocorrencias"})
+UNIDADES_SOMAVEIS = frozenset(Unidade)
 
 NOTA_SOMA = "Valor calculado pelo projeto como soma das UFs da região."
 
@@ -44,25 +45,21 @@ class Divergencia:
         loc = self.chave.localidade
         recorte = ";".join(f"{d}={v}" for d, v in self.chave.recorte) or "total"
         return (
-            f"{loc.nivel}={loc.sigla} {self.chave.indicador} [{recorte}] {self.chave.ano}: "
+            f"{loc.nivel}={loc.sigla} {self.chave.indicador} [{recorte}] {self.chave.unidade} "
+            f"{self.chave.ano}: "
             f"publicado {self.publicado}, soma das UFs {self.soma_das_ufs}"
         )
 
 
-def agregar(
-    linhas: Iterable[Linha],
-    regiao_da_uf: Mapping[str, str],
-    unidade_do_indicador: Mapping[str, str],
-) -> list[Linha]:
+def agregar(linhas: Iterable[Linha], regiao_da_uf: Mapping[str, str]) -> list[Linha]:
     """Confere os agregados publicados e devolve as linhas regionais que faltam.
 
-    `regiao_da_uf` mapeia a sigla de cada uma das 27 UFs para a sigla da sua região, e
-    `unidade_do_indicador` mapeia o slug de cada indicador para a sua unidade
-    (ambos vêm das referências de localidades e catálogo).
+    `regiao_da_uf` mapeia a sigla de cada uma das 27 UFs para a sigla da sua região (vem das
+    referências de localidades). A unidade de cada linha está na própria chave.
 
     Anota, nas linhas do Brasil, quando o total publicado soma só as UFs que informaram.
     Levanta `ErroAgregacao` se algum agregado publicado divergir da soma das UFs, se faltar UF em
-    algum grupo ou se aparecer indicador ou UF fora das referências.
+    algum grupo, se aparecer UF fora das referências ou unidade que não seja somável.
     """
     linhas = list(linhas)
     ufs_da_regiao: dict[str, set[str]] = defaultdict(set)
@@ -83,8 +80,7 @@ def agregar(
         localidade = linha.chave.localidade
         if localidade.nivel is not Nivel.UF:
             continue
-        if not _somavel(linha.chave.indicador, unidade_do_indicador):
-            continue
+        _exigir_somavel(linha.chave)
         if localidade.sigla not in regiao_da_uf:
             raise ErroAgregacao(f"UF sem região nas referências: {localidade.sigla}")
         regiao = Localidade(Nivel.REGIAO, regiao_da_uf[localidade.sigla])
@@ -130,14 +126,13 @@ def agregar(
 
 
 def _sem_localidade(chave: Chave) -> tuple:
-    return (chave.indicador, chave.recorte, chave.ano)
+    return (chave.indicador, chave.recorte, chave.unidade, chave.ano)
 
 
-def _somavel(indicador: str, unidade_do_indicador: Mapping[str, str]) -> bool:
-    try:
-        return unidade_do_indicador[indicador] in UNIDADES_SOMAVEIS
-    except KeyError:
-        raise ErroAgregacao(f"Indicador fora do catálogo: {indicador}") from None
+def _exigir_somavel(chave: Chave) -> None:
+    """Toda linha de UF tem unidade absoluta; outra unidade é erro do leitor, não dado a pular."""
+    if chave.unidade not in UNIDADES_SOMAVEIS:
+        raise ErroAgregacao(f"Unidade não somável em {chave}: {chave.unidade!r}")
 
 
 def _exigir_ufs(ufs: list[Linha], esperadas: set[str], grupo) -> None:

@@ -429,7 +429,7 @@ Campos da linha regional:
 - `marcas` = união das marcas das UFs.
 - `fonte` é a mesma das UFs somadas (atribuída na gravação).
 
-A função recebe a referência por parâmetro (`regiao_da_uf`, de `localidades/referencia.py`) e não acessa o banco; o que é somável decide-se pela `unidade` da chave (ADR 0004). Hoje `linhas.Chave` ainda não tem `unidade` e `agregar` recebe `unidade_do_indicador`: os dois mudam junto com a migração de `unidade`. O comando converte `ErroAgregacao` em `CommandError`, o que desfaz a transação.
+A função recebe a referência por parâmetro (`regiao_da_uf`, de `localidades/referencia.py`) e não acessa o banco; o que é somável decide-se pela `unidade` da chave (ADR 0004). `linhas.Chave` tem `unidade`, e uma linha de UF com unidade que não seja `vitimas` ou `ocorrencias` aborta (`ErroAgregacao`), em vez de ser pulada. O comando converte `ErroAgregacao` em `CommandError`, o que desfaz a transação.
 
 ### 4.9 Gravação idempotente
 

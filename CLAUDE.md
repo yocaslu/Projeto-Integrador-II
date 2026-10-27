@@ -211,10 +211,10 @@ projeto-integrador-ii/
 │   │   │   ├── mapeamento.py          ✚ especificação declarativa das tabelas T02–T21
 │   │   │   ├── leitores/              # fbsp.py (openpyxl), ibge.py (pandas + odfpy)
 │   │   │   ├── normalizacao.py        # “-”, “...”, Decimal  ✎ notas de rodapé e localidades
-│   │   │   ├── linhas.py              # Chave, Linha, Localidade (nível + sigla), Metodo  ✎ `unidade` na Chave
-│   │   │   ├── agregacao.py           # regiões = soma das UFs; confere Brasil e T02  ✎ somável pela unidade da chave
+│   │   │   ├── linhas.py              # Chave (com `unidade`), Linha, Localidade (nível + sigla), Metodo, Unidade
+│   │   │   ├── agregacao.py           # regiões = soma das UFs; confere Brasil e T02; somável pela unidade da chave
 │   │   │   ├── gravacao.py            ✚ upsert idempotente
-│   │   │   ├── validacao.py           # relatório de divergências  ✎ sem arredondar, tolerância 1e-6, variação da taxa, T09/T21
+│   │   │   ├── validacao.py           # relatório de divergências (sem arredondar, tolerância 1e-6)  ✎ variação da taxa, T09/T21
 │   │   │   └── management/commands/
 │   │   │       ├── importar_anuario.py
 │   │   │       └── inspecionar_planilha.py ✚ lista abas, âncoras e caminhos de cabeçalho
