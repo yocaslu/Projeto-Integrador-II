@@ -1,7 +1,7 @@
 # Modelagem de dados
 
-Oito entidades: REGIOES, ESTADOS, POPULACAO, FONTES, INDICADORES, RECORTES, RECORTE_ITENS e
-REGISTROS_ANUAIS (tabela de fatos). A descrição completa está na seção "Modelagem de dados" do
+Nove entidades: REGIOES, ESTADOS, POPULACAO, FONTES, INDICADORES, RECORTES, RECORTE_ITENS,
+REGISTROS_ANUAIS (tabela de fatos) e CARGAS (sem relacionamento; versão da carga). A descrição completa está na seção "Modelagem de dados" do
 roteiro.
 
 Diagrama entidade-relacionamento (Figura 3 do roteiro):
@@ -15,5 +15,8 @@ Para regenerar as imagens depois de editar o `.dot`:
 dot -Tpng -Gdpi=200 modelo-er.dot -o modelo-er.png && dot -Tsvg modelo-er.dot -o modelo-er.svg
 ```
 
-O diagrama segue o roteiro. Os ajustes decididos depois (slug, codigo_ibge, chave do recorte,
-origem e a entidade CARGAS, listados no CLAUDE.md) entram aqui quando forem registrados em ADR.
+O diagrama já inclui os ajustes 1 a 13 ao modelo do roteiro listados no CLAUDE.md (ADRs 0002 a
+0005): `slug`, `ordem`, `unidade_padrao` e `fonte_taxa` em INDICADORES; `codigo_ibge` em REGIOES e
+ESTADOS; `chave` em RECORTES; `slug` em FONTES; `unidade`, `origem` e `metodo` em REGISTROS_ANUAIS,
+com `unidade` na chave única; CHECK e unicidade em POPULACAO; e a entidade CARGAS. Onde o roteiro
+diverge do diagrama, vale o diagrama.

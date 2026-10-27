@@ -3,27 +3,28 @@ from decimal import Decimal
 import pytest
 
 from apps.importacao.agregacao import NOTA_SOMA, ErroAgregacao, agregar
-from apps.importacao.linhas import Chave, Linha, Localidade, Metodo, Nivel
+from apps.importacao.linhas import Chave, Linha, Localidade, Metodo, Nivel, Unidade
 from apps.importacao.normalizacao import Situacao, normalizar_celula
 
 # Referência reduzida: duas UFs por região. "SE" é Sergipe (Nordeste) e também a sigla do Sudeste.
 REGIAO_DA_UF = {"AC": "N", "PA": "N", "BA": "NE", "SE": "NE", "MG": "SE", "SP": "SE"}
-UNIDADES = {
-    "mvi": "vitimas",
-    "homicidio-doloso": "vitimas",
-    "morte-intervencao-policial": "vitimas",
-    "roubo": "ocorrencias",
-    "roubo-celular": "ocorrencias",
-    "proporcao-feminicidios": "percentual",
+# Unidade padrão de cada indicador usado nos testes, só para não repeti-la em cada linha.
+UNIDADE_PADRAO = {
+    "mvi": Unidade.VITIMAS,
+    "homicidio-doloso": Unidade.VITIMAS,
+    "morte-intervencao-policial": Unidade.VITIMAS,
+    "roubo": Unidade.OCORRENCIAS,
+    "roubo-celular": Unidade.OCORRENCIAS,
 }
 PM_EM_SERVICO = (("corporacao", "Polícia Militar"), ("situacao_policial", "Em serviço"))
 PC_EM_SERVICO = (("corporacao", "Polícia Civil"), ("situacao_policial", "Em serviço"))
 
 
-def linha(nivel, sigla, bruto, indicador="mvi", ano=2025, recorte=(), **extra):
+def linha(nivel, sigla, bruto, indicador="mvi", ano=2025, recorte=(), unidade=None, **extra):
     celula = normalizar_celula(bruto)
+    unidade = unidade or UNIDADE_PADRAO[indicador]
     return Linha(
-        chave=Chave(Localidade(Nivel(nivel), sigla), indicador, recorte, ano),
+        chave=Chave(Localidade(Nivel(nivel), sigla), indicador, recorte, unidade, ano),
         valor=celula.valor,
         situacao=celula.situacao,
         **extra,
@@ -40,7 +41,7 @@ def por_regiao(novas):
 
 
 def executar(linhas):
-    return agregar(linhas, REGIAO_DA_UF, UNIDADES)
+    return agregar(linhas, REGIAO_DA_UF)
 
 
 def test_soma_as_ufs_de_cada_regiao():
@@ -51,7 +52,9 @@ def test_soma_as_ufs_de_cada_regiao():
     assert novas["NE"].valor == Decimal(70)
     assert novas["SE"].valor == Decimal(110)
     norte = novas["N"]
-    assert norte.chave == Chave(Localidade(Nivel.REGIAO, "N"), "homicidio-doloso", (), 2025)
+    assert norte.chave == Chave(
+        Localidade(Nivel.REGIAO, "N"), "homicidio-doloso", (), Unidade.VITIMAS, 2025
+    )
     assert norte.situacao is Situacao.INFORMADO
     assert norte.metodo is Metodo.SOMA_UFS
     assert norte.taxa_publicada is None
@@ -104,10 +107,33 @@ def test_subtipos_nunca_viram_total_do_indicador_pai():
     assert {n.chave.indicador for n in novas} == {"roubo-celular"}
 
 
-def test_unidade_percentual_nao_e_somada():
-    linhas = ufs([10, 20, 30, 40, 50, 60], indicador="proporcao-feminicidios")
+def test_vitimas_e_ocorrencias_sao_somadas_separadamente():
+    linhas = ufs([1, 1, 1, 1, 1, 1], indicador="homicidio-doloso", unidade=Unidade.VITIMAS)
+    linhas += ufs([2, 2, 2, 2, 2, 2], indicador="homicidio-doloso", unidade=Unidade.OCORRENCIAS)
 
-    assert executar(linhas) == []
+    novas = executar(linhas)
+
+    assert len(novas) == 6
+    norte = {n.chave.unidade: n.valor for n in novas if n.chave.localidade.sigla == "N"}
+    assert norte == {Unidade.VITIMAS: Decimal(2), Unidade.OCORRENCIAS: Decimal(4)}
+
+
+def test_brasil_e_conferido_dentro_da_mesma_unidade():
+    linhas = ufs([1, 1, 1, 1, 1, 1], indicador="homicidio-doloso", unidade=Unidade.VITIMAS)
+    linhas += ufs([2, 2, 2, 2, 2, 2], indicador="homicidio-doloso", unidade=Unidade.OCORRENCIAS)
+    linhas.append(linha("pais", "BR", 6, indicador="homicidio-doloso", unidade=Unidade.VITIMAS))
+    linhas.append(
+        linha("pais", "BR", 12, indicador="homicidio-doloso", unidade=Unidade.OCORRENCIAS)
+    )
+
+    assert len(executar(linhas)) == 6
+
+
+def test_unidade_nao_somavel_aborta():
+    linhas = ufs([10, 20, 30, 40, 50, 60], unidade="percentual")
+
+    with pytest.raises(ErroAgregacao, match="Unidade não somável"):
+        executar(linhas)
 
 
 def test_regiao_publicada_nao_e_recalculada_e_confere_com_a_soma():
@@ -124,7 +150,7 @@ def test_regiao_publicada_divergente_aborta():
     linhas = ufs([10, 20, 30, 40, 50, 60])
     linhas.append(linha("regiao", "N", 31))
 
-    with pytest.raises(ErroAgregacao, match=r"regiao=N mvi \[total\] 2025: publicado 31"):
+    with pytest.raises(ErroAgregacao, match=r"regiao=N mvi \[total\] vitimas 2025: publicado 31"):
         executar(linhas)
 
 
@@ -178,11 +204,6 @@ def test_uf_fora_das_referencias_aborta():
 
     with pytest.raises(ErroAgregacao, match="UF sem região nas referências: XX"):
         executar(linhas)
-
-
-def test_indicador_fora_do_catalogo_aborta():
-    with pytest.raises(ErroAgregacao, match="Indicador fora do catálogo: inventado"):
-        executar(ufs([1, 2, 3, 4, 5, 6], indicador="inventado"))
 
 
 def test_origem_lista_as_celulas_somadas():

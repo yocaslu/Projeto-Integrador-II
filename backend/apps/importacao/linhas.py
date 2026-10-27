@@ -33,15 +33,25 @@ class Localidade(NamedTuple):
     sigla: str
 
 
+class Unidade(StrEnum):
+    """Unidade do valor do registro (ADR 0004). Um fato com duas vítimas conta 2 e 1."""
+
+    VITIMAS = "vitimas"
+    OCORRENCIAS = "ocorrencias"
+
+
 Recorte = tuple[tuple[str, str], ...]
 """Pares (dimensao, valor) em ordem; vazio = total do indicador."""
 
 
 @dataclass(frozen=True, order=True)
 class Chave:
+    """Identidade de um registro, igual à chave única de REGISTROS_ANUAIS."""
+
     localidade: Localidade
     indicador: str
     recorte: Recorte
+    unidade: Unidade
     ano: int
 
 

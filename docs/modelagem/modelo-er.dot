@@ -8,8 +8,10 @@ digraph ER {
     <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>REGIOES</B></FONT></TD></TR>
     <TR><TD ALIGN="LEFT">PK  id</TD></TR>
     <TR><TD ALIGN="LEFT">nome</TD></TR>
-    <TR><TD ALIGN="LEFT">sigla</TD></TR>
+    <TR><TD ALIGN="LEFT">sigla  (BR, N, NE, SE, S, CO)</TD></TR>
     <TR><TD ALIGN="LEFT">tipo  (regiao | pais)</TD></TR>
+    <TR><TD ALIGN="LEFT">codigo_ibge</TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT POINT-SIZE="9">UNIQUE (tipo, codigo_ibge)</FONT></TD></TR>
   </TABLE>>];
 
   ESTADOS [label=<
@@ -18,6 +20,7 @@ digraph ER {
     <TR><TD ALIGN="LEFT">PK  id</TD></TR>
     <TR><TD ALIGN="LEFT">uf</TD></TR>
     <TR><TD ALIGN="LEFT">nome</TD></TR>
+    <TR><TD ALIGN="LEFT">codigo_ibge  (único)</TD></TR>
     <TR><TD ALIGN="LEFT">FK  regiao_id</TD></TR>
   </TABLE>>];
 
@@ -30,12 +33,14 @@ digraph ER {
     <TR><TD ALIGN="LEFT">FK  fonte_id</TD></TR>
     <TR><TD ALIGN="LEFT">ano</TD></TR>
     <TR><TD ALIGN="LEFT">valor</TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT POINT-SIZE="9">CHECK: estado_id XOR regiao_id<BR ALIGN="LEFT"/>UNIQUE NULLS NOT DISTINCT<BR ALIGN="LEFT"/>(estado_id, regiao_id, ano)<BR ALIGN="LEFT"/></FONT></TD></TR>
   </TABLE>>];
 
   FONTES [label=<
   <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
     <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>FONTES</B></FONT></TD></TR>
     <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">slug  (único)</TD></TR>
     <TR><TD ALIGN="LEFT">nome</TD></TR>
     <TR><TD ALIGN="LEFT">descricao</TD></TR>
     <TR><TD ALIGN="LEFT">url</TD></TR>
@@ -50,32 +55,52 @@ digraph ER {
     <TR><TD ALIGN="LEFT">FK  indicador_id</TD></TR>
     <TR><TD ALIGN="LEFT">FK  recorte_id  (nulo)</TD></TR>
     <TR><TD ALIGN="LEFT">FK  fonte_id</TD></TR>
+    <TR><TD ALIGN="LEFT">unidade  (vitimas | ocorrencias)</TD></TR>
     <TR><TD ALIGN="LEFT">ano</TD></TR>
-    <TR><TD ALIGN="LEFT">valor  (nulo)</TD></TR>
-    <TR><TD ALIGN="LEFT">taxa_publicada  (nulo)</TD></TR>
-    <TR><TD ALIGN="LEFT">situacao</TD></TR>
+    <TR><TD ALIGN="LEFT">valor  NUMERIC(18,4)  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">taxa_publicada  NUMERIC(24,12)  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">situacao  (informado | inexistente | nao_disponivel)</TD></TR>
     <TR><TD ALIGN="LEFT">metodo  (publicado | soma_ufs)</TD></TR>
+    <TR><TD ALIGN="LEFT">origem</TD></TR>
     <TR><TD ALIGN="LEFT">observacao</TD></TR>
     <TR><TD ALIGN="LEFT" BGCOLOR="#FFF7ED"><FONT POINT-SIZE="9">CHECK: estado_id XOR regiao_id</FONT></TD></TR>
-    <TR><TD ALIGN="LEFT" BGCOLOR="#FFF7ED"><FONT POINT-SIZE="9">UNIQUE NULLS NOT DISTINCT (estado_id,<BR ALIGN="LEFT"/>regiao_id, indicador_id, recorte_id, ano)<BR ALIGN="LEFT"/></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#FFF7ED"><FONT POINT-SIZE="9">UNIQUE NULLS NOT DISTINCT (estado_id,<BR ALIGN="LEFT"/>regiao_id, indicador_id, recorte_id, unidade, ano)<BR ALIGN="LEFT"/></FONT></TD></TR>
   </TABLE>>];
 
   INDICADORES [label=<
   <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
     <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>INDICADORES</B></FONT></TD></TR>
     <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">slug  (único)</TD></TR>
     <TR><TD ALIGN="LEFT">nome</TD></TR>
     <TR><TD ALIGN="LEFT">descricao</TD></TR>
-    <TR><TD ALIGN="LEFT">unidade</TD></TR>
-    <TR><TD ALIGN="LEFT">base_taxa</TD></TR>
+    <TR><TD ALIGN="LEFT">ordem  (único)</TD></TR>
+    <TR><TD ALIGN="LEFT">unidade_padrao  (vitimas | ocorrencias)</TD></TR>
+    <TR><TD ALIGN="LEFT">base_taxa  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT" PORT="fonte">FK  fonte_taxa_id  (nulo)</TD></TR>
     <TR><TD ALIGN="LEFT" PORT="pai">FK  indicador_pai_id  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT POINT-SIZE="9">CHECK: base_taxa e fonte_taxa_id<BR ALIGN="LEFT"/>ambos nulos ou ambos preenchidos<BR ALIGN="LEFT"/></FONT></TD></TR>
   </TABLE>>];
 
   RECORTES [label=<
   <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
     <TR><TD BGCOLOR="#1E3A5F" ALIGN="CENTER"><FONT COLOR="white"><B>RECORTES</B></FONT></TD></TR>
     <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">chave  (única)</TD></TR>
     <TR><TD ALIGN="LEFT">rotulo</TD></TR>
+  </TABLE>>];
+
+  CARGAS [label=<
+  <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5" COLOR="#334155">
+    <TR><TD BGCOLOR="#475569" ALIGN="CENTER"><FONT COLOR="white"><B>CARGAS</B></FONT></TD></TR>
+    <TR><TD ALIGN="LEFT">PK  id</TD></TR>
+    <TR><TD ALIGN="LEFT">versao</TD></TR>
+    <TR><TD ALIGN="LEFT">arquivos  (nome, sha256)</TD></TR>
+    <TR><TD ALIGN="LEFT">iniciada_em</TD></TR>
+    <TR><TD ALIGN="LEFT">concluida_em  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT">status</TD></TR>
+    <TR><TD ALIGN="LEFT">total_registros  (nulo)</TD></TR>
+    <TR><TD ALIGN="LEFT" BGCOLOR="#F1F5F9"><FONT POINT-SIZE="9">sem relacionamento: versão da carga<BR ALIGN="LEFT"/>(ETag e /metadados/)<BR ALIGN="LEFT"/></FONT></TD></TR>
   </TABLE>>];
 
   RECORTE_ITENS [label=<
@@ -104,5 +129,6 @@ digraph ER {
   REGISTROS -> INDICADORES [dir=both, arrowtail=crowodot, arrowhead=teetee];
   REGISTROS -> RECORTES    [dir=both, arrowtail=crowodot, arrowhead=teeodot];
   RECORTES -> RECORTE_ITENS [arrowtail=teetee, arrowhead=crowtee];
+  FONTES -> INDICADORES:fonte [arrowtail=teeodot, arrowhead=crowodot, xlabel="fonte_taxa", fontname="DejaVu Sans", fontsize=9];
   INDICADORES:pai -> INDICADORES [arrowtail=crowodot, arrowhead=teeodot, xlabel="indicador_pai", fontname="DejaVu Sans", fontsize=9];
 }

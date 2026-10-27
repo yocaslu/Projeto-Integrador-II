@@ -108,6 +108,8 @@ Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
 9. `INDICADORES.ordem` (inteiro único, pré-ordem da hierarquia) — ordena indicadores na API; valores em `docs/importacao.md`, seção 2 (ADR 0003).
 10. `REGISTROS_ANUAIS.unidade` (`vitimas` | `ocorrencias`), na chave única (ADR 0004) — o mesmo indicador tem vítimas e ocorrências (T03–T05).
 11. `INDICADORES.unidade` passa a `INDICADORES.unidade_padrao` — a unidade que a API usa quando o cliente não pede outra (ADR 0004). A unidade `percentual` deixa de existir.
+12. `INDICADORES.fonte_taxa` (FK anulável para `FONTES`, `PROTECT`) — fonte do denominador da taxa, de onde a API tira `taxa.fonte`; nula se e somente se `base_taxa` é nula (`CheckConstraint`). Habitantes → `ibge-estimativas`; mulheres → `ibge-projecoes`; veículos → `senatran-frota`; instituições → `bcb-instituicoes` (ADR 0005).
+13. `FONTES.slug` (único) — catálogo fixo em `catalogo/referencia.py`, criado primeiro e sempre na mesma ordem com `update_or_create(slug=…)`, para ids estáveis: 1 `secretarias-seguranca`, 2 `ibge-estimativas`, 3 `ibge-projecoes`, 4 `senatran-frota`, 5 `bcb-instituicoes` (ADR 0005; contrato, 4.5).
 
 ### Contrato da API (resumo)
 
@@ -124,7 +126,7 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 - Catálogos (`/regioes/`, `/estados/`, `/indicadores/`, `/recortes/`, `/fontes/`): array JSON na raiz, sem paginação.
 - `/registros/` e `/populacao/`: paginados (`pagina` padrão 1, `tamanho` padrão 100, máx. 1000, acima → 400), envelope `count`/`next`/`previous`/`results`.
 - `/ranking/`, `/comparacao/`, `/metadados/`: objeto, com os parâmetros efetivos (inclusive padrões resolvidos) ecoados.
-- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`), `recorte` (`null` | `id`, `rotulo`, `itens`), `unidade`, `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte`), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct` = variação da taxa, a mesma do FBSP), `participacao` (`referencia` {`tipo`, `indicador`} | `null`, `valor_pct`), `fonte`, `observacao`.
+- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`), `recorte` (`null` | `id`, `rotulo`, `itens`), `unidade`, `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte` = `indicador.fonte_taxa`, nula quando `valor` é nulo), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct` = variação da taxa, a mesma do FBSP), `participacao` (`referencia` {`tipo`, `indicador`} | `null`, `valor_pct`), `fonte`, `observacao`.
 - `participacao`: sem recorte, valor ÷ indicador-pai × 100 (`indicador_pai`); com recorte, valor ÷ total do mesmo indicador × 100 (`total_do_indicador`); mesma localidade, ano e unidade; nula em raízes e filhos de agrupador. Substitui as proporções da T09 e da T21. Nunca somar participações.
 
 **Decimais** (texto, `COERCE_DECIMAL_TO_STRING = True`)
@@ -151,7 +153,8 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 - CSV em `/registros/`, `/populacao/`, `/ranking/`, `/comparacao/`; nos demais, `formato=csv` ou `Accept: text/csv` → 406. `formato` prevalece sobre `Accept`; formato desconhecido → 406 (não o 404 do DRF; `URL_FORMAT_OVERRIDE = "formato"`).
 - CSV: RFC 4180, UTF-8 sem BOM, `\r\n`, cabeçalho sempre, nulo = vazio, mesmos arredondamentos do JSON, streaming, máx. 50 mil linhas (acima → 400), achatamento por `_` (`taxa_valor`), `fonte`/`taxa_fonte` só com o nome. **Colunas e ordem são contrato** (contrato, 5.3).
 - Erros em Problem Details (RFC 9457), `application/problem+json`, com lista `erros` em validações (já em `apps/api/erros.py`), sempre em JSON, mesmo quando o CSV foi pedido.
-- Cache: `Cache-Control: public, max-age=86400`, `ETag: W/"<versao>-<json|csv>"`, `Vary: Accept`, 304 com `If-None-Match`.
+- Cache: `Cache-Control: public, max-age=86400`, `ETag: W/"<versao>-<json|csv>"`, `Vary: Accept`, 304 com `If-None-Match`. `versao` = carga concluída com o maior `concluida_em`.
+- Sem nenhuma carga concluída: 503 em Problem Details em todo recurso de `/api/v1/` (menos `schema`, `docs`, `redoc`), com `Cache-Control: no-store` e sem `ETag` (contrato, 7.1).
 
 ### Requisitos (referência rápida)
 
@@ -167,7 +170,7 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 | RF11 | Situação do dado e notas metodológicas junto a cada valor |
 | RF12 | Importação idempotente + relatório de validação das taxas |
 | RF13 | Comparação UF × região × Brasil |
-| RNF02 | p95 < 500 ms em consultas filtradas por UF, ano e indicador (teste automatizado) |
+| RNF02 | p95 < 500 ms em consultas filtradas por UF, ano e indicador (teste automatizado; método no ADR 0005) |
 | RNF05 | Cobertura ≥ 75% no CI |
 | RNF06 | API somente leitura; carga só por comando administrativo |
 | RNF07 | Configuração por variáveis de ambiente, sem credenciais no repositório |
@@ -189,7 +192,7 @@ projeto-integrador-ii/
 ├── CLAUDE.md
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml                     ✎ incluir makemigrations --check e diff do docs/api/openapi.yaml
+│   │   ├── ci.yml                     ✎ incluir makemigrations --check, diff do docs/api/openapi.yaml e `pytest -m desempenho --no-cov`
 │   │   └── deploy.yml
 │   └── pull_request_template.md       ✎ checklist da Definição de pronto
 ├── backend/
@@ -200,7 +203,7 @@ projeto-integrador-ii/
 │   │   ├── localidades/               # Regiao, Estado, Populacao
 │   │   │   └── referencia.py          ✚ 5 regiões + Brasil + 27 UFs (sigla, nome, código IBGE, aliases)
 │   │   ├── catalogo/                  # Fonte, Indicador, Recorte, RecorteItem
-│   │   │   └── referencia.py          ✚ hierarquia de indicadores (slug, pai, unidade, base_taxa)
+│   │   │   └── referencia.py          ✚ fontes (slug, ordem fixa) e hierarquia de indicadores (slug, pai, unidade_padrao, base_taxa, fonte_taxa)
 │   │   ├── registros/                 # RegistroAnual
 │   │   │   └── queries.py             # taxa, variação e participação (subconsultas), ranking com empates, comparação
 │   │   ├── importacao/
@@ -208,10 +211,10 @@ projeto-integrador-ii/
 │   │   │   ├── mapeamento.py          ✚ especificação declarativa das tabelas T02–T21
 │   │   │   ├── leitores/              # fbsp.py (openpyxl), ibge.py (pandas + odfpy)
 │   │   │   ├── normalizacao.py        # “-”, “...”, Decimal  ✎ notas de rodapé e localidades
-│   │   │   ├── linhas.py              # Chave, Linha, Localidade (nível + sigla), Metodo  ✎ `unidade` na Chave
-│   │   │   ├── agregacao.py           # regiões = soma das UFs; confere Brasil e T02  ✎ somável pela unidade da chave
+│   │   │   ├── linhas.py              # Chave (com `unidade`), Linha, Localidade (nível + sigla), Metodo, Unidade
+│   │   │   ├── agregacao.py           # regiões = soma das UFs; confere Brasil e T02; somável pela unidade da chave
 │   │   │   ├── gravacao.py            ✚ upsert idempotente
-│   │   │   ├── validacao.py           # relatório de divergências  ✎ sem arredondar, tolerância 1e-6, variação da taxa, T09/T21
+│   │   │   ├── validacao.py           # relatório de divergências (sem arredondar, tolerância 1e-6)  ✎ variação da taxa, T09/T21
 │   │   │   └── management/commands/
 │   │   │       ├── importar_anuario.py
 │   │   │       └── inspecionar_planilha.py ✚ lista abas, âncoras e caminhos de cabeçalho
@@ -220,7 +223,7 @@ projeto-integrador-ii/
 │   │       │   ├── parametros.py      ✚ validação comum: desconhecido/repetido/vazio → 400, listas, nível × uf × região
 │   │       │   └── campos.py          ✚ campos decimais (inteiro, 2 casas, precisão total) e objetos localidade/taxa/variação
 │   │       └── erros.py · renderizadores.py · paginacao.py · cache.py
-│   └── tests/                         # espelha apps/: importacao/, registros/, api/, desempenho/
+│   └── tests/                         # espelha apps/: importacao/, registros/, api/, desempenho/ (RNF02, ADR 0005)
 │       ├── localidades/ · catalogo/   ✚
 │       ├── conftest.py
 │       └── fixtures/                  # planilhas reduzidas (recortes da real, poucas UFs)
@@ -334,6 +337,10 @@ Não decida sozinho; pergunte antes de implementar o que depender destes pontos.
 5. ~~Tolerância da validação~~ — **resolvida (ADR 0004):** comparação sem arredondar, tolerância absoluta de 1e-6; a variação publicada é comparada à variação da taxa.
 6. ~~Proporções~~ — **resolvida (ADR 0004):** calculadas pela API (`participacao`); T09 e T21 viram conferência.
 7. ~~Precisão de `taxa_publicada`~~ — **resolvida (ADR 0003):** 12 casas, arredondadas na importação (ajuste 7).
+8. ~~Fonte de `taxa.fonte`~~ — **resolvida (ADR 0005):** `INDICADORES.fonte_taxa` (ajuste 12).
+9. ~~Catálogo de fontes~~ — **resolvida (ADR 0005):** `FONTES.slug` e ids fixos 1–5 (ajuste 13).
+10. ~~API sem carga concluída~~ — **resolvida (ADR 0005):** 503, `no-store`, sem ETag (contrato, 7.1).
+11. ~~Método do teste do RNF02~~ — **resolvida (ADR 0005):** pytest `-m desempenho` no CI, carga real, cliente em processo, p95 por recurso (`tests/desempenho/README.md`).
 
 ---
 

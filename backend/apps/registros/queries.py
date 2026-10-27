@@ -5,19 +5,19 @@ Ficam fora das views para que os cálculos sejam testados sem requisições HTTP
 
 from decimal import Decimal
 
-QUATRO_CASAS = Decimal("0.0001")
-
 
 def variacao_percentual(atual: Decimal | None, anterior: Decimal | None) -> Decimal | None:
     """Variação percentual entre dois anos.
 
     É nula quando falta um dos valores ou quando a base é zero, como define o contrato da API.
+    Devolve precisão total: o arredondamento a 2 casas acontece só na serialização
+    (apps/api/v1/campos.py; contrato, seção 1.2).
     Na consulta ao banco, o mesmo cálculo é feito por subconsulta sobre o ano anterior, e não
     por função de janela, para que um filtro como ano=2025 não deixe a variação sempre nula.
     """
     if atual is None or anterior is None or anterior == 0:
         return None
-    return ((atual - anterior) / anterior * 100).quantize(QUATRO_CASAS)
+    return (atual - anterior) / anterior * 100
 
 
 def posicoes_com_empate(valores: list[Decimal | None]) -> list[int | None]:
