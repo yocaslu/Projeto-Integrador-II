@@ -155,7 +155,7 @@ Só a T02 publica totais regionais. Nas demais tabelas (28 localidades: Brasil e
 | Item | Quantidade |
 | :--- | ---: |
 | Registros lidos da planilha (`metodo = publicado`) | 1.750 |
-| Registros regionais calculados (`metodo = soma_ufs`, seção 4.9) | 230 |
+| Registros regionais calculados (`metodo = soma_ufs`, seção 4.8) | 230 |
 | **Registros (`REGISTROS_ANUAIS`)** | **1.980** |
 | Recortes (`RECORTES`) | 4 |
 | População (`POPULACAO`) | 66 (33 localidades × 2 anos) |
@@ -179,7 +179,7 @@ importar_anuario [--dados DIR] [--relatorio DIR] [--somente-validar] [--estrito]
 │     ├─ populacao = ibge.ler(DIR)              # {(localidade, ano): Decimal}; 66 linhas
 │     ├─ gravar_populacao(populacao)
 │     ├─ linhas = [l for t in TABELAS for l in fbsp.ler_tabela(wb, t)]
-│     ├─ linhas += agregacao.agregar(linhas, regiao_da_uf)  # seção 4.9; somável pela unidade da chave; diverge → CommandError
+│     ├─ linhas += agregacao.agregar(linhas, regiao_da_uf)  # seção 4.8; somável pela unidade da chave; diverge → CommandError
 │     ├─ verificar_chaves_unicas(linhas)        # mesma chave vinda de duas tabelas donas → erro
 │     ├─ relatorio = validacao.gerar(linhas, populacao, conferencias=fbsp.ler_conferencias(wb))  # T01, T09, proporção da T21
 │     ├─ if --somente-validar: desfaz a transação (transaction.set_rollback(True))
@@ -355,41 +355,63 @@ Dimensões permitidas: `corporacao` e `situacao_policial`. Perfis de vítimas (s
 
 ### 4.8 Totais regionais (`agregacao.py`)
 
-Decisão registrada no ADR 0002. Só a T02 publica regiões; nas demais tabelas o total de cada região é a soma das UFs que a compõem, o mesmo método do FBSP.
+Decisão registrada no ADR 0002. O Anuário publica o total do Brasil em todas as tabelas, mas os totais das regiões só na T02 (MVI). Sem eles, `nivel=regiao` e `/comparacao/` (RF13) ficariam vazios para todos os indicadores menos a MVI. A região é então calculada como **soma das UFs**, que é o mesmo método do FBSP.
 
-**Premissa conferida na planilha versionada:** em todas as colunas de números absolutos das tabelas lidas, o Brasil publicado é exatamente a soma das UFs, e na T02 cada região publicada é exatamente a soma de suas UFs, de 2012 a 2025. As únicas diferenças estão em colunas de taxa, variação e proporção, que não são somáveis.
+**Premissa conferida na planilha versionada:**
+
+- em todas as colunas de números absolutos de T01 a T21 (vítimas e ocorrências), o Brasil é exatamente a soma das 27 UFs;
+- na T02, cada região é exatamente a soma das suas UFs, em todos os 14 anos;
+- as únicas diferenças estão em colunas de taxa, variação e proporção, que não são somáveis.
+
+Implementação (`agregacao.agregar`, já escrita e testada em `tests/importacao/test_agregacao.py`):
 
 ```python
-def somar_regioes(linhas, populacao) -> list[Linha]:
-    """Um total por (região, indicador, recorte, unidade, ano) das tabelas sem regiões publicadas."""
-    grupos = agrupar(l for l in linhas if l.localidade.nivel == "uf" and not tabela_publica_regioes(l))
-    novas = []
-    for (regiao, indicador, recorte, unidade, ano), ufs in grupos.items():
-        assert len(ufs) == regiao.estados.count()          # UF faltando → ErroImportacao
-        if any(u.situacao == "nao_disponivel" for u in ufs):
-            valor, situacao = None, "nao_disponivel"         # nunca soma parcial
-        elif all(u.situacao == "inexistente" for u in ufs):
-            valor, situacao = Decimal(0), "inexistente"
-        else:
-            valor, situacao = sum(u.valor for u in ufs), "informado"
-        novas.append(Linha(localidade=regiao, indicador=indicador, recorte=recorte, unidade=unidade, ano=ano,
-                           valor=valor, situacao=situacao, metodo="soma_ufs",
-                           taxa_publicada=None, origem=None, observacao=None,
-                           fonte=ufs[0].fonte))
-    return novas
+def agregar(linhas, regiao_da_uf) -> list[Linha]:
+    """Confere os agregados publicados e devolve as linhas regionais que faltam."""
+    # 1. Brasil (todas as tabelas): soma das UFs que informaram == valor publicado, senão ErroAgregacao.
+    #    Se alguma UF estiver "...", anota em observacao que o total publicado é soma parcial.
+    # 2. Para cada (região, indicador, recorte, unidade, ano) de UFs com unidade somável:
+    #    - região já publicada (T02) → só conferência (diverge → ErroAgregacao);
+    #    - senão → _somar(ufs), com metodo = soma_ufs.
+    # 3. Qualquer divergência acumulada → ErroAgregacao com todas listadas.
+
+def _somar(chave, ufs) -> Linha:
+    if any(u.valor is None for u in ufs):
+        valor, situacao = None, "nao_disponivel"            # nunca soma parcial
+    elif all(u.situacao == "inexistente" for u in ufs):
+        valor, situacao = Decimal(0), "inexistente"
+    else:
+        valor, situacao = sum(u.valor for u in ufs), "informado"
+    return Linha(chave=chave, valor=valor, situacao=situacao, metodo="soma_ufs",
+                 taxa_publicada=None,
+                 origem=_origem(ufs),                         # "T03!C19+C24+C30+C36"
+                 observacao=NOTA_SOMA + UFs sem informação + notas das UFs,
+                 marcas=união das marcas das UFs)
 ```
 
 Regras:
-- Soma **só números absolutos**, dentro do mesmo indicador, recorte, unidade e ano. Nunca entre um indicador e seus subtipos (o total regional de `roubo` vem das UFs de `roubo`).
-- Região com alguma UF `nao_disponivel` → `nao_disponivel`, valor nulo, mesmo que as demais informem. Uma soma parcial pareceria comparável às outras regiões.
-- `taxa_publicada` é nula. A taxa regional sai da regra geral (regra 11): calculada com a população da região quando a base é 100 mil habitantes; nas outras bases (mulheres, veículos, instituições) não há denominador regional e a taxa é nula.
-- `observacao` é nula: as notas do FBSP descrevem UFs específicas. `origem` é nula; o `metodo` identifica o cálculo.
-- `fonte` é a mesma das UFs somadas.
 
-`conferir_publicados`:
-- Brasil (todas as tabelas) e regiões (T02) contra a soma das UFs **que informaram**, que é como o FBSP publica.
-- Divergência → `ErroImportacao` com aba, indicador, recorte, ano, esperado e obtido. A carga é desfeita.
-- Agregado publicado com alguma UF `nao_disponivel` (hoje, o Brasil dos recortes da T08) → **informação** no relatório: o valor é uma soma parcial.
+| Situação | Resultado |
+| :--- | :--- |
+| Linha de UF (unidade `vitimas` ou `ocorrencias`, a da chave) | Somada com as demais UFs da região, no mesmo indicador, recorte, unidade e ano |
+| Indicador-pai × subtipos | Nunca somados entre si: a soma é só geográfica (UF → região) |
+| Todas as UFs da região informadas | `valor` = soma; `situacao = informado` (ou `inexistente`, se todas forem "-") |
+| Alguma UF da região com "..." | `valor = NULL`, `situacao = nao_disponivel`; a observação lista as UFs sem informação. Nunca grava soma parcial |
+| Região já publicada (T02) | Não é recalculada; vira conferência |
+| Agregado publicado (Brasil ou região da T02) diferente da soma das UFs que informaram | `ErroAgregacao` → a importação aborta |
+| Brasil publicado com UF "..." | Mantido como publicado (o FBSP soma só as UFs que informaram) e anotado em `observacao`: "O total publicado pelo FBSP soma apenas as UFs que informaram o dado (21 de 27; sem informação: …)." Também entra no relatório como **informação** (hoje, o Brasil dos recortes da T08) |
+| UF ausente no grupo ou UF sem região | `ErroAgregacao` (regra 7) |
+
+Campos da linha regional:
+
+- `metodo = soma_ufs` (as lidas da planilha têm `metodo = publicado`). A API expõe o campo para que o dashboard identifique o valor como calculado pelo projeto (RF11).
+- `taxa_publicada = NULL`. A taxa da região é calculada na consulta pela população da região quando a base é 100 mil habitantes (regra 11). Nas demais bases (mulheres, veículos, instituições) não há denominador regional, e a taxa fica nula. Taxas das UFs nunca são somadas nem tiradas em média.
+- `origem` = as células somadas, com a aba uma vez: `T03!C19+C24+C30+C36`.
+- `observacao` = "Valor calculado pelo projeto como soma das UFs da região.", seguida, quando houver, de "UFs sem informação: …" e das notas das UFs. **Não é nula**: as notas das UFs (RF11) valem também para o total que as soma. Uma nota comum a todas as UFs aparece uma vez; as demais vêm com a sigla da UF (ex.: `MG: A categoria homicídio doloso inclui as mortes decorrentes de intervenções policiais.`).
+- `marcas` = união das marcas das UFs.
+- `fonte` é a mesma das UFs somadas (atribuída na gravação).
+
+A função recebe a referência por parâmetro (`regiao_da_uf`, de `localidades/referencia.py`) e não acessa o banco; o que é somável decide-se pela `unidade` da chave (ADR 0004). Hoje `linhas.Chave` ainda não tem `unidade` e `agregar` recebe `unidade_do_indicador`: os dois mudam junto com a migração de `unidade`. O comando converte `ErroAgregacao` em `CommandError`, o que desfaz a transação.
 
 ### 4.9 Gravação idempotente
 
@@ -408,36 +430,6 @@ RegistroAnual.objects.bulk_create(
 - O `ON CONFLICT` usa a constraint `NULLS NOT DISTINCT`, de modo que registros sem recorte ou de região atualizam em vez de duplicar. **Teste obrigatório:** importar duas vezes a fixture e comparar contagem e o conjunto de `id`.
 - Registros da carga anterior ausentes na atual não são apagados: entram no relatório como "órfãos".
 
-### 4.9 Agregados regionais (`agregacao.py`)
-
-O Anuário publica o total do Brasil em todas as tabelas, mas os totais das regiões só na T02 (MVI). Sem eles, `nivel=regiao` e `/comparacao/` (RF13) ficariam vazios para todos os indicadores menos a MVI. A região é então calculada como **soma das UFs**, que é o mesmo método do FBSP. Na planilha versionada:
-
-- em todas as colunas de números absolutos de T01 a T21, o Brasil é exatamente a soma das 27 UFs;
-- na T02, cada região é exatamente a soma das suas UFs, em todos os 14 anos.
-
-Regras:
-
-| Situação | Resultado |
-| :--- | :--- |
-| Linha de UF (unidade `vitimas` ou `ocorrencias`, a da chave) | Somada com as demais UFs da região, no mesmo indicador, recorte, unidade e ano |
-| Indicador-pai × subtipos | Nunca somados entre si: a soma é só geográfica (UF → região) |
-| Todas as UFs da região informadas | `valor` = soma; `situacao = informado` (ou `inexistente`, se todas forem "-") |
-| Alguma UF da região com "..." | `valor = NULL`, `situacao = nao_disponivel`; a observação lista as UFs sem informação. Nunca grava soma parcial |
-| Região já publicada (T02) | Não é recalculada; vira conferência |
-| Agregado publicado (Brasil ou região da T02) diferente da soma das UFs que informaram | `ErroAgregacao` → a importação aborta |
-| Brasil publicado com UF "..." | Mantido como publicado (o FBSP soma só as UFs que informaram) e anotado em `observacao`: "O total publicado pelo FBSP soma apenas as UFs que informaram o dado (21 de 27; sem informação: …)." |
-| UF ausente no grupo, UF sem região ou indicador fora do catálogo | `ErroAgregacao` (regra 7) |
-
-Campos da linha regional:
-
-- `metodo = soma_ufs` (as lidas da planilha têm `metodo = publicado`). A API expõe o campo para que o dashboard identifique o valor como calculado pelo projeto (RF11).
-- `taxa_publicada = NULL`. A taxa da região é calculada na consulta pela população da região quando a base é 100 mil habitantes (regra 11). Nas demais bases (mulheres, veículos, instituições) não há denominador regional, e a taxa fica nula. Taxas das UFs nunca são somadas nem tiradas em média.
-- `origem` = as células somadas, com a aba uma vez: `T03!C19+C24+C30+C36`.
-- `observacao` = "Valor calculado pelo projeto como soma das UFs da região.", seguida das notas das UFs. Uma nota comum a todas as UFs aparece uma vez; as demais vêm com a sigla da UF (ex.: `MG: A categoria homicídio doloso inclui as mortes decorrentes de intervenções policiais.`).
-- `marcas` = união das marcas das UFs.
-
-A função recebe a referência por parâmetro (`regiao_da_uf`, de `localidades/referencia.py`) e não acessa o banco; o que é somável decide-se pela `unidade` da chave (ADR 0004). Hoje `linhas.Chave` ainda não tem `unidade` e `agregar` recebe `unidade_do_indicador`: os dois mudam junto com a migração de `unidade`. O comando converte `ErroAgregacao` em `CommandError`, o que desfaz a transação.
-
 ---
 
 ## 5. Relatório de validação (RF12)
@@ -455,8 +447,8 @@ Todas as comparações são feitas em **precisão total, sem arredondar nenhum l
 | Conferência T09 × T02 e T08 | Absolutos de MVI e de MDIP (total), 2024–2025 | divergência |
 | Base da taxa × nota do grupo | Texto da nota casa com `base_taxa` | erro (aborta) |
 | Soma dos recortes × total (T08) | Informativo | informação |
-| Soma das UFs × Brasil | Soma das UFs que informaram contra o total publicado (seção 4.9), por unidade | erro (aborta) |
-| Soma das UFs × região publicada | T02, todos os anos (seção 4.9) | erro (aborta) |
+| Soma das UFs × Brasil | Soma das UFs que informaram contra o total publicado (seção 4.8), por unidade | erro (aborta) |
+| Soma das UFs × região publicada | T02, todos os anos (seção 4.8) | erro (aborta) |
 | Regiões calculadas | Quantidade por tabela e unidade e quantas ficaram `nao_disponivel` | informação |
 | Contagem por situação | `informado`, `inexistente`, `nao_disponivel` por tabela | informação |
 | Célula vazia | Ocorrência de vazio em área de dados | aviso |

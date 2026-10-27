@@ -11,5 +11,6 @@ Restrições previstas:
 - situacao com as marcações originais: informado, inexistente ou nao_disponivel (RF11);
 - metodo: publicado (lido da planilha) ou soma_ufs (total regional calculado na importação
   como soma das UFs, nos indicadores cuja tabela não publica regiões; ver ADR 0002). Em
-  soma_ufs, origem e taxa_publicada são nulos.
+  soma_ufs, taxa_publicada é nula, origem lista as células somadas e observacao traz as notas
+  das UFs (docs/importacao.md, seção 4.8).
 """

@@ -1,4 +1,4 @@
-"""Agregados regionais calculados como soma das UFs (docs/importacao.md, seção 4.9).
+"""Agregados regionais calculados como soma das UFs (docs/importacao.md, seção 4.8).
 
 O Anuário publica o total do Brasil em todas as tabelas, mas os totais das regiões só na série
 histórica de MVI (T02). Para os demais indicadores, a região é calculada aqui somando as UFs, que é

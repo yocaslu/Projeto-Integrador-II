@@ -38,8 +38,10 @@ UFs, de 2012 a 2025. Logo, a soma reproduz o método do FBSP.
 - `/comparacao/` e `nivel=regiao` passam a ter dados para todos os indicadores do escopo.
 - A carga passa de 1.582 para 1.782 registros (200 `soma_ufs`, dos quais 24 `nao_disponivel`
   nos recortes da T08).
-- `REGISTROS_ANUAIS` ganha o campo `metodo`; `origem` e `taxa_publicada` ficam nulos nos
-  registros `soma_ufs`.
+- `REGISTROS_ANUAIS` ganha o campo `metodo`; `taxa_publicada` fica nula nos registros
+  `soma_ufs`. (Corrigido em 2026-10-27: `origem` não é nula, lista as células somadas, e
+  `observacao` traz as notas das UFs, como já fazem `agregacao.py` e seus testes; ver
+  `docs/importacao.md`, seção 4.8.)
 - Os totais regionais de feminicídio, homicídio de mulheres, roubo e furto de veículo e roubo a
   instituição financeira ficam sem taxa, por falta de denominador regional.
 - O Brasil dos recortes da T08 é uma soma parcial publicada pelo FBSP (há UFs com "..."). Ele é
