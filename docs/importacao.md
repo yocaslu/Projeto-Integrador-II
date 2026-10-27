@@ -302,6 +302,8 @@ Já implementada em `apps/importacao/normalizacao.py` (`normalizar_celula`):
 
 Taxa com `-` grava `taxa_publicada = 0`; com `...`, `NULL`.
 
+Taxa numérica: `Decimal(str(v)).quantize(Decimal("1e-12"), rounding=ROUND_HALF_UP)`, o mesmo arredondamento que o PostgreSQL faria ao gravar em `NUMERIC(24, 12)`. Feito aqui, e não deixado para o banco, a `Linha` em memória fica igual ao valor gravado, e a validação e a idempotência comparam os mesmos números. A planilha traz até 17 dígitos significativos (até 18 casas), que são a representação em ponto flutuante do Excel; o erro de até 5e-13 é irrelevante, mas diferenças menores que isso entre a taxa calculada e a publicada não aparecem no relatório (ADR 0003). Nunca `Decimal(v)` direto do `float`: ele produziria a expansão binária inteira.
+
 ### 4.5 Localidades
 
 ```python

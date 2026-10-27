@@ -66,13 +66,15 @@ do PostgreSQL para `numeric`).
 | `valor` com unidade `percentual` | 2 casas fixas | `"37.50"` |
 | `taxa.valor` | 2 casas fixas | `"40.94"` |
 | `variacao.valor_pct`, `variacao.taxa_pct` | 2 casas fixas, sinal `-` quando negativa | `"-3.10"` |
-| `taxa_publicada` | precisão guardada no banco, sem zeros à direita e sem notação exponencial | `"40.9415826"` |
+| `taxa_publicada` | até 12 casas (a precisão guardada no banco), sem zeros à direita e sem notação exponencial | `"40.9415826"` |
 | `populacao.valor` | inteiro, sem casas | `"213421037"` |
 
 - Zero sai como `"0"` (inteiros) ou `"0.00"` (2 casas). Nunca `"-0.00"`: zero negativo vira
   `"0.00"`.
-- `taxa_publicada` mantém a precisão total para dar transparência ao relatório de validação
-  (RF12); o cliente que quiser exibi-la arredonda.
+- `taxa_publicada` mantém as 12 casas guardadas para dar transparência ao relatório de validação
+  (RF12); o cliente que quiser exibi-la arredonda. As 12 casas vêm do arredondamento feito na
+  importação (a célula da planilha pode ter até 18 casas, ruído do ponto flutuante do Excel); a
+  diferença é de no máximo 5e-13.
 - **A API ordena e classifica pelo que mostra:** `ordenar=taxa` e o ranking usam a taxa já
   arredondada a 2 casas. Duas UFs que aparecem com `"40.94"` empatam.
 

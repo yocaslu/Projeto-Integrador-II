@@ -103,7 +103,7 @@ Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
 4. `REGISTROS_ANUAIS.origem` (ex.: `T08!D15`) — rastreabilidade de cada valor até a célula da planilha; nulo quando `metodo = soma_ufs`.
 5. Nova entidade `CARGAS` (versao, sha256 de cada arquivo, iniciada_em, concluida_em, status, total_registros) — alimenta `/metadados/` e o ETag.
 6. `POPULACAO` recebe a mesma CHECK de localidade e unicidade (localidade, ano) `NULLS NOT DISTINCT`.
-7. `taxa_publicada` guarda a taxa **sem arredondar**, como publicada (a planilha traz até 15 casas): `DecimalField(max_digits=24, decimal_places=12)`. `valor`: `DecimalField(max_digits=18, decimal_places=4)`.
+7. `taxa_publicada` guarda a taxa publicada **arredondada a 12 casas**: `DecimalField(max_digits=24, decimal_places=12)`. A planilha traz até 17 dígitos significativos (até 18 casas), que são a representação em ponto flutuante do Excel, não precisão do FBSP; o erro de até 5e-13 é irrelevante para a análise, mas o valor gravado não reproduz a célula dígito a dígito (ADR 0003). O arredondamento é feito na importação, em `normalizacao.py`, com `Decimal(str(v)).quantize(Decimal("1e-12"), ROUND_HALF_UP)`, para que a linha em memória seja igual à gravada. `valor`: `DecimalField(max_digits=18, decimal_places=4)`.
 8. `REGISTROS_ANUAIS.metodo` (`publicado` | `soma_ufs`, padrão `publicado`) — distingue o valor lido da planilha do agregado regional calculado pelo projeto; exposto na API (RF11). `origem` com `max_length=200`, porque a linha regional lista as células somadas.
 9. `INDICADORES.ordem` (inteiro único, pré-ordem da hierarquia) — ordena indicadores na API; valores em `docs/importacao.md`, seção 2 (ADR 0003).
 
@@ -329,7 +329,7 @@ Não decida sozinho; pergunte antes de implementar o que depender destes pontos.
 4. ~~Casas decimais na API~~ — **resolvida (ADR 0003):** inteiro em valores absolutos, 2 casas em `taxa.valor` e `variacao`, precisão guardada em `taxa_publicada` (contrato, seção 1.2).
 5. **Tolerância da validação:** `validacao.py` arredonda a 0,1 e tolera 0,1, mas as taxas do FBSP batem com o cálculo pela população do IBGE até ~1e-14. Sugestão: comparar com tolerância de 1e-6.
 6. **Proporções** (T09 e coluna "Proporção" da T21): derivadas de outros indicadores; não importadas por ora.
-7. **Precisão de `taxa_publicada`:** o ajuste 7 diz "sem arredondar" porque a planilha traz até 15 casas, mas `decimal_places=12` arredonda na 12ª casa ao gravar. Decidir entre aceitar 12 casas (e corrigir o texto do ajuste 7) ou usar `max_digits=27, decimal_places=15`. Afeta o que `taxa_publicada` mostra na API; decidir antes da primeira migração de `registros`.
+7. ~~Precisão de `taxa_publicada`~~ — **resolvida (ADR 0003):** 12 casas, arredondadas na importação (ajuste 7).
 
 ---
 
