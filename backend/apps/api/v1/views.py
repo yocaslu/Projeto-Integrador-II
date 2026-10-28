@@ -20,6 +20,7 @@ from rest_framework.response import Response
 from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 
+from apps.api import cache
 from apps.api.erros import SemCargaConcluida
 from apps.api.paginacao import paginar
 from apps.api.renderizadores import RenderizadorCSV, resposta_csv, verificar_limite
@@ -81,10 +82,16 @@ class RecursoV1(APIView):
         )
 
     def finalize_response(self, request, response, *args, **kwargs):
+        """Toda resposta 200 de GET/HEAD leva os cabeçalhos de cache; ETag atual → 304 (seção 7)."""
         response = super().finalize_response(request, response, *args, **kwargs)
-        if response.status_code == 200:
+        if response.status_code != 200:
+            return response
+        carga = getattr(self, "carga", None)
+        if carga is None:  # OPTIONS: não depende da carga
             patch_vary_headers(response, ["Accept"])
-        return response
+            return response
+        formato = getattr(request.accepted_renderer, "format", "json")
+        return cache.aplicar(request, response, carga.versao, formato)
 
 
 def _em_lotes(consulta, serializador) -> Iterator[dict]:
