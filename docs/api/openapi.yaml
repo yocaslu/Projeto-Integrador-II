@@ -1,0 +1,490 @@
+openapi: 3.0.3
+info:
+  title: API do Anuário Brasileiro de Segurança Pública
+  version: 1.0.0
+  description: 'Indicadores do Anuário Brasileiro de Segurança Pública 2026. Fontes:
+    Fórum Brasileiro de Segurança Pública (FBSP) e IBGE.'
+  license:
+    name: AGPL-3.0
+    url: https://www.gnu.org/licenses/agpl-3.0.html
+paths:
+  /api/v1/estados/:
+    get:
+      operationId: api_v1_estados_list
+      description: As 27 UFs, por sigla, com a região a que pertencem (contrato, 4.2).
+      summary: Unidades da Federação
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: query
+        name: regiao
+        schema:
+          type: string
+        description: Lista de siglas de região separadas por vírgula (N, NE, SE, S,
+          CO). `BR` → 400.
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Estado'
+          description: ''
+  /api/v1/estados/{uf}/:
+    get:
+      operationId: api_v1_estados_retrieve
+      description: Sigla sem diferença de caixa; sigla inexistente → 404.
+      summary: Uma Unidade da Federação
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: path
+        name: uf
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Estado'
+          description: ''
+  /api/v1/fontes/:
+    get:
+      operationId: api_v1_fontes_list
+      description: Catálogo fixo de fontes, por id (contrato, 4.5; ADR 0005).
+      summary: Fontes dos dados
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Fonte'
+          description: ''
+  /api/v1/indicadores/:
+    get:
+      operationId: api_v1_indicadores_list
+      description: Lista plana, pela ordem da hierarquia (pré-ordem). A hierarquia
+        significa "contido em", nunca "soma de" (contrato, 4.3). A árvore aninhada
+        está em /metadados/.
+      summary: Indicadores
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Indicador'
+          description: ''
+  /api/v1/indicadores/{slug}/:
+    get:
+      operationId: api_v1_indicadores_retrieve
+      description: Slug inexistente → 404.
+      summary: Um indicador
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Indicador'
+          description: ''
+  /api/v1/recortes/:
+    get:
+      operationId: api_v1_recortes_list
+      description: Recortes de agentes (corporação e situação do policial), por chave,
+        com os indicadores que têm registros em cada um (contrato, 4.4). O `id` é
+        o que se passa em `recorte=` nos outros recursos.
+      summary: Recortes
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: query
+        name: indicador
+        schema:
+          type: string
+        description: 'Lista de slugs separados por vírgula: só os recortes com registros
+          desses indicadores.'
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Recorte'
+          description: ''
+  /api/v1/regioes/:
+    get:
+      operationId: api_v1_regioes_list
+      description: As cinco regiões e o total nacional, em ordem canônica (BR, N,
+        NE, SE, S, CO), com as siglas das UFs de cada uma (contrato, 4.1).
+      summary: Regiões e Brasil
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Regiao'
+          description: ''
+  /api/v1/regioes/{sigla}/:
+    get:
+      operationId: api_v1_regioes_retrieve
+      description: Sigla sem diferença de caixa; sigla inexistente → 404.
+      summary: Uma região ou o Brasil
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: path
+        name: sigla
+        schema:
+          type: string
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Regiao'
+          description: ''
+components:
+  schemas:
+    BaseTaxaEnum:
+      enum:
+      - 100 mil habitantes
+      - 100 mil mulheres
+      - 100 mil veículos
+      - 100 instituições
+      type: string
+      description: |-
+        * `100 mil habitantes` - Habitantes
+        * `100 mil mulheres` - Mulheres
+        * `100 mil veículos` - Veiculos
+        * `100 instituições` - Instituicoes
+    BlankEnum:
+      enum:
+      - ''
+    Estado:
+      type: object
+      properties:
+        sigla:
+          type: string
+          maxLength: 2
+        nome:
+          type: string
+          maxLength: 50
+        codigo_ibge:
+          type: string
+          maxLength: 2
+        regiao:
+          $ref: '#/components/schemas/RegiaoResumo'
+      required:
+      - codigo_ibge
+      - nome
+      - regiao
+      - sigla
+    Fonte:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        slug:
+          type: string
+          maxLength: 50
+          pattern: ^[-a-zA-Z0-9_]+$
+        nome:
+          type: string
+          maxLength: 200
+        descricao:
+          type: string
+        url:
+          type: string
+          format: uri
+          maxLength: 500
+      required:
+      - descricao
+      - id
+      - nome
+      - slug
+      - url
+    FonteResumo:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nome:
+          type: string
+          maxLength: 200
+      required:
+      - id
+      - nome
+    Indicador:
+      type: object
+      description: Item de /indicadores/ (contrato, 4.3). Lista plana; a árvore fica
+        em /metadados/.
+      properties:
+        slug:
+          type: string
+          maxLength: 60
+          pattern: ^[-a-zA-Z0-9_]+$
+        nome:
+          type: string
+          maxLength: 120
+        descricao:
+          type: string
+        unidade_padrao:
+          $ref: '#/components/schemas/UnidadePadraoEnum'
+        unidades:
+          type: array
+          items:
+            type: string
+          readOnly: true
+          description: Unidades com registros, na ordem vitimas, ocorrencias.
+        base_taxa:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/BaseTaxaEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        fonte_taxa:
+          allOf:
+          - $ref: '#/components/schemas/FonteResumo'
+          nullable: true
+        indicador_pai:
+          type: string
+          readOnly: true
+        subtipos:
+          type: array
+          items:
+            type: string
+          readOnly: true
+          description: Slugs dos filhos diretos, na ordem.
+        possui_registros:
+          type: boolean
+          readOnly: true
+        anos:
+          type: array
+          items:
+            type: integer
+          readOnly: true
+          description: Anos com registros, crescentes.
+        recortes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecorteResumo'
+          readOnly: true
+      required:
+      - anos
+      - fonte_taxa
+      - indicador_pai
+      - nome
+      - possui_registros
+      - recortes
+      - slug
+      - subtipos
+      - unidade_padrao
+      - unidades
+    NullEnum:
+      enum:
+      - null
+    Recorte:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        rotulo:
+          type: string
+          maxLength: 200
+        chave:
+          type: string
+          maxLength: 200
+        itens:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecorteItem'
+        indicadores:
+          type: array
+          items:
+            type: string
+          readOnly: true
+          description: Slugs dos indicadores com registros nesse recorte.
+      required:
+      - chave
+      - id
+      - indicadores
+      - itens
+      - rotulo
+    RecorteItem:
+      type: object
+      properties:
+        dimensao:
+          type: string
+        valor:
+          type: string
+      required:
+      - dimensao
+      - valor
+    RecorteResumo:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        rotulo:
+          type: string
+          maxLength: 200
+      required:
+      - id
+      - rotulo
+    Regiao:
+      type: object
+      properties:
+        sigla:
+          type: string
+          maxLength: 2
+        nome:
+          type: string
+          maxLength: 50
+        tipo:
+          $ref: '#/components/schemas/TipoEnum'
+        codigo_ibge:
+          type: string
+          maxLength: 2
+        estados:
+          type: array
+          items:
+            type: string
+          readOnly: true
+          description: Siglas das UFs; no Brasil, as 27.
+      required:
+      - codigo_ibge
+      - estados
+      - nome
+      - sigla
+      - tipo
+    RegiaoResumo:
+      type: object
+      properties:
+        sigla:
+          type: string
+          maxLength: 2
+        nome:
+          type: string
+          maxLength: 50
+      required:
+      - nome
+      - sigla
+    TipoEnum:
+      enum:
+      - regiao
+      - pais
+      type: string
+      description: |-
+        * `regiao` - Região
+        * `pais` - País
+    UnidadePadraoEnum:
+      enum:
+      - vitimas
+      - ocorrencias
+      type: string
+      description: |-
+        * `vitimas` - Número de vítimas
+        * `ocorrencias` - Número de ocorrências

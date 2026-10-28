@@ -222,9 +222,9 @@ projeto-integrador-ii/
 │   │   │       └── inspecionar_planilha.py # lista abas, âncoras e caminhos de cabeçalho
 │   │   └── api/
 │   │       ├── v1/                    # urls, views, serializers, filtros
-│   │       │   ├── parametros.py      ✚ validação comum: desconhecido/repetido/vazio → 400, listas, nível × uf × região
-│   │       │   └── campos.py          ✚ campos decimais (inteiro, 2 casas, precisão total) e objetos localidade/taxa/variação
-│   │       └── erros.py · renderizadores.py · paginacao.py · cache.py
+│   │       │   ├── parametros.py      # LeitorParametros: desconhecido/repetido/vazio → 400, listas, anos, nível × uf × região, ordenar
+│   │       │   └── campos.py          # campos decimais (inteiro, 2 casas, precisão guardada)  ✎ objetos localidade/taxa/variação
+│   │       └── erros.py · negociacao.py · renderizadores.py · paginacao.py · cache.py
 │   └── tests/                         # espelha apps/: importacao/, registros/, api/, desempenho/ (RNF02, ADR 0005)
 │       ├── localidades/ · catalogo/
 │       ├── conftest.py
@@ -240,7 +240,7 @@ projeto-integrador-ii/
 │   ├── importacao.md                  # mapeamento da planilha e algoritmo de extração
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
 │   ├── modelagem.md                   ✚ transcrição da seção do roteiro
-│   ├── api/openapi.yaml               ✚ esquema gerado e versionado (diff verificado no CI)
+│   ├── api/openapi.yaml               # esquema gerado e versionado  ✎ diff verificado no CI
 │   └── adr/                           # 0001 a 0007 (0007: implementação do modelo e da importação)
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
