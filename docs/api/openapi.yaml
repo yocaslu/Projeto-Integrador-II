@@ -2,8 +2,10 @@ openapi: 3.0.3
 info:
   title: API do Anuário Brasileiro de Segurança Pública
   version: 1.0.0
-  description: 'Indicadores do Anuário Brasileiro de Segurança Pública 2026. Fontes:
-    Fórum Brasileiro de Segurança Pública (FBSP) e IBGE.'
+  description: |-
+    Indicadores do Anuário Brasileiro de Segurança Pública 2026. Fontes: Fórum Brasileiro de Segurança Pública (FBSP) e IBGE.
+
+    API somente leitura (GET, HEAD, OPTIONS). Erros em Problem Details (RFC 9457), sempre em JSON. Os dados só mudam numa nova importação: toda resposta 200 leva `Cache-Control: public, max-age=86400`, `Vary: Accept` e `ETag: W/"<versão da carga>-<json|csv>"`; reenvie o ETag em `If-None-Match` para receber 304 sem corpo. Sem nenhuma carga de dados concluída, os recursos respondem 503 com `Cache-Control: no-store`.
   license:
     name: AGPL-3.0
     url: https://www.gnu.org/licenses/agpl-3.0.html
