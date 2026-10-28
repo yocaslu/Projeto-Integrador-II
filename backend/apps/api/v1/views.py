@@ -6,7 +6,7 @@ carga concluída (503, seção 7.1) e só então os parâmetros (400, seção 2)
 """
 
 from collections import defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from functools import reduce
 from operator import or_
@@ -17,10 +17,12 @@ from django.utils.cache import patch_vary_headers
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import exceptions
 from rest_framework.response import Response
+from rest_framework.settings import api_settings
 from rest_framework.views import APIView
 
 from apps.api.erros import SemCargaConcluida
 from apps.api.paginacao import paginar
+from apps.api.renderizadores import RenderizadorCSV, resposta_csv, verificar_limite
 from apps.api.v1 import campos
 from apps.api.v1 import serializers as s
 from apps.api.v1.parametros import NIVEIS, Anos, LeitorParametros, Localidades
@@ -40,11 +42,21 @@ from apps.registros.queries import (
     ranking,
 )
 
+LOTE_CSV = 2000  # registros lidos do banco por vez no streaming (contrato, 5.1)
+
 FORMATO_JSON = OpenApiParameter(
     "formato",
     str,
     enum=["json"],
     description="Formato da resposta. Este recurso só tem JSON; `csv` → 406.",
+)
+FORMATO_JSON_CSV = OpenApiParameter(
+    "formato",
+    str,
+    enum=["json", "csv"],
+    description="`json` (padrão) ou `csv`; tem precedência sobre o cabeçalho `Accept`. O CSV traz "
+    "o recorte completo, sem paginação (`pagina`/`tamanho` → 400), até 50 000 linhas, com as "
+    "colunas da seção 5.3 do contrato.",
 )
 
 
@@ -73,6 +85,35 @@ class RecursoV1(APIView):
         if response.status_code == 200:
             patch_vary_headers(response, ["Accept"])
         return response
+
+
+def _em_lotes(consulta, serializador) -> Iterator[dict]:
+    """Objetos do JSON lidos do banco em lotes, para o streaming do CSV (contrato, 5.1).
+
+    Um serializador `many=True` por lote, e não um por linha: montar os campos de um
+    serializador do DRF custa mais que serializar o objeto.
+    """
+    lote = []
+    for objeto in consulta.iterator(chunk_size=LOTE_CSV):
+        lote.append(objeto)
+        if len(lote) == LOTE_CSV:
+            yield from serializador(lote, many=True).data
+            lote = []
+    if lote:
+        yield from serializador(lote, many=True).data
+
+
+class RecursoExportavel(RecursoV1):
+    """Recurso com CSV (contrato, 5.1): /registros/, /populacao/, /ranking/ e /comparacao/.
+
+    Os demais recursos não declaram o renderizador CSV e respondem 406 a `formato=csv`.
+    """
+
+    renderer_classes = [*api_settings.DEFAULT_RENDERER_CLASSES, RenderizadorCSV]
+
+    @property
+    def em_csv(self) -> bool:
+        return self.request.accepted_renderer.format == "csv"
 
 
 def _todas_as_ufs() -> list[str]:
@@ -375,7 +416,7 @@ UNIDADE_PADRAO, UNIDADE_TODAS = "padrao", "todas"
 RECORTE_TOTAL, RECORTE_TODOS = "total", "todos"
 
 
-class ListaRegistros(RecursoV1):
+class ListaRegistros(RecursoExportavel):
     parametros_permitidos = (
         "nivel",
         "uf",
@@ -439,7 +480,7 @@ class ListaRegistros(RecursoV1):
                 "`id`; nulos sempre ao final.",
             ),
             *PARAMETROS_DE_PAGINA,
-            FORMATO_JSON,
+            FORMATO_JSON_CSV,
         ],
         responses=s.PaginaDeRegistrosSerializer,
     )
@@ -518,6 +559,9 @@ class ListaRegistros(RecursoV1):
         consulta = RegistroAnual.objects.filter(filtro)
         total = consulta.count()
         anotada = _registros_para_serializar(anotar_registros(consulta)).order_by(*ordenacao(ordem))
+        if self.em_csv:
+            verificar_limite(total)
+            return resposta_csv("registros", _em_lotes(anotada, s.RegistroSerializer))
         itens, envelope = paginar(request, anotada, total, paginacao)
         envelope["results"] = s.RegistroSerializer(itens, many=True).data
         return Response(envelope)
@@ -549,7 +593,7 @@ class DetalheRegistro(RecursoV1):
         return Response(s.RegistroSerializer(registro).data)
 
 
-class ListaPopulacao(RecursoV1):
+class ListaPopulacao(RecursoExportavel):
     parametros_permitidos = ("nivel", "uf", "regiao", "ano", "ano_min", "ano_max", "ordenar")
     paginado = True
 
@@ -568,7 +612,7 @@ class ListaPopulacao(RecursoV1):
                 "localidade (canônica), ano; depois `id`.",
             ),
             *PARAMETROS_DE_PAGINA,
-            FORMATO_JSON,
+            FORMATO_JSON_CSV,
         ],
         responses=s.PaginaDePopulacaoSerializer,
     )
@@ -586,6 +630,9 @@ class ListaPopulacao(RecursoV1):
         ordenada = consulta.select_related("estado", "regiao", "fonte").order_by(
             *ordenacao(ordem, CAMPOS_DE_ORDENACAO_DA_POPULACAO, ORDEM_PADRAO_DA_POPULACAO)
         )
+        if self.em_csv:
+            verificar_limite(total)
+            return resposta_csv("populacao", _em_lotes(ordenada, s.PopulacaoSerializer))
         itens, envelope = paginar(request, ordenada, total, paginacao)
         envelope["results"] = s.PopulacaoSerializer(itens, many=True).data
         return Response(envelope)
@@ -594,7 +641,7 @@ class ListaPopulacao(RecursoV1):
 # Ranking e comparação (contrato, seções 4.8 e 4.9)
 
 
-class _ConsultaDeUmIndicador(RecursoV1):
+class _ConsultaDeUmIndicador(RecursoExportavel):
     """Regras comuns a /ranking/ e /comparacao/: um indicador, uma unidade, um recorte."""
 
     def _ler_indicador_unidade_recorte(self):
@@ -692,7 +739,7 @@ class Ranking(_ConsultaDeUmIndicador):
                 enum=list(CRITERIOS_DO_RANKING),
                 description="`taxa` (padrão), `valor` ou `participacao`.",
             ),
-            FORMATO_JSON,
+            FORMATO_JSON_CSV,
         ],
         responses=s.RankingSerializer,
     )
@@ -738,6 +785,10 @@ class Ranking(_ConsultaDeUmIndicador):
             "recorte": self._recorte(recorte),
             "results": s.ItemDoRankingSerializer(itens, many=True).data,
         }
+        if self.em_csv:
+            verificar_limite(len(dados["results"]))
+            contexto = {k: dados[k] for k in ("ano", "indicador", "unidade", "criterio", "recorte")}
+            return resposta_csv("ranking", ({**contexto, **item} for item in dados["results"]))
         return Response(dados)
 
 
@@ -758,7 +809,7 @@ class Comparacao(_ConsultaDeUmIndicador):
             OpenApiParameter(
                 "ano_max", int, description="Padrão: o último ano com registros do indicador."
             ),
-            FORMATO_JSON,
+            FORMATO_JSON_CSV,
         ],
         responses=s.ComparacaoSerializer,
     )
@@ -798,6 +849,18 @@ class Comparacao(_ConsultaDeUmIndicador):
             "ano_max": ano_max,
             "series": s.SerieSerializer(series, many=True).data,
         }
+        if self.em_csv:
+            linhas = [
+                {
+                    **{k: dados[k] for k in ("indicador", "unidade", "recorte")},
+                    "localidade": serie["localidade"],
+                    **ponto,
+                }
+                for serie in dados["series"]
+                for ponto in serie["pontos"]
+            ]
+            verificar_limite(len(linhas))
+            return resposta_csv("comparacao", linhas)
         return Response(dados)
 
 
