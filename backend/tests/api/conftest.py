@@ -135,3 +135,13 @@ def serie(referencias):
     criar("uf", "BA", "furto-celular", 2025, 9, unidade=oco, taxa="0.6")
     criar_carga()
     return refs
+
+
+@pytest.fixture
+def importado(db, planilhas):
+    """Planilhas reduzidas importadas: 27 UFs, regiões (publicadas e somadas) e Brasil."""
+    from apps.importacao.processo import importar
+    from tests.conftest import TABELAS_REDUZIDAS
+
+    importar(planilhas.dados, planilhas.relatorio, planilhas.manifesto, tabelas=TABELAS_REDUZIDAS)
+    return planilhas

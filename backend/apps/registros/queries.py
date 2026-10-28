@@ -315,3 +315,65 @@ def ordenacao(
             )
     ordem.append(F("id").asc())
     return ordem
+
+
+# Ranking e comparação (contrato, seções 4.8 e 4.9)
+
+CRITERIOS_DO_RANKING = {
+    "taxa": "taxa_arredondada",
+    "valor": "valor",
+    "participacao": "participacao_arredondada",
+}
+"""Critério de /ranking/ e a anotação classificada: a API classifica pelo que mostra (1.2)."""
+
+
+def ranking(
+    indicador_id: int, ano: int, unidade: str, recorte_id: int | None, criterio: str
+) -> list[tuple[int | None, RegistroAnual]]:
+    """As UFs em ordem decrescente do critério, com a posição de cada uma.
+
+    Empates têm a mesma posição e a seguinte salta (1, 2, 2, 4) e se desempatam por sigla; UF com
+    o critério nulo vem ao final, com posição nula, por sigla. Brasil e regiões não entram.
+    """
+    campo = CRITERIOS_DO_RANKING[criterio]
+    registros = anotar_registros(
+        RegistroAnual.objects.filter(
+            estado__isnull=False,
+            indicador_id=indicador_id,
+            ano=ano,
+            unidade=unidade,
+            recorte_id=recorte_id,
+        )
+    ).order_by(F(campo).desc(nulls_last=True), "estado__sigla")
+    lista = list(registros.select_related("estado", "indicador", "indicador__fonte_taxa", "fonte"))
+    posicoes = posicoes_com_empate([getattr(registro, campo) for registro in lista])
+    return list(zip(posicoes, lista, strict=True))
+
+
+def comparacao(
+    estado, indicador_id: int, unidade: str, recorte_id: int | None, ano_min: int, ano_max: int
+) -> list[tuple[object, list[RegistroAnual]]]:
+    """Três séries, nesta ordem: a UF, a região dela e o Brasil, cada uma por ano crescente.
+
+    Devolve (localidade, registros anotados) por série; a localidade é o Estado ou a Regiao.
+    """
+    do_indicador = RegistroAnual.objects.filter(
+        indicador_id=indicador_id,
+        unidade=unidade,
+        recorte_id=recorte_id,
+        ano__gte=ano_min,
+        ano__lte=ano_max,
+    )
+    brasil = Regiao.objects.get(tipo=Regiao.Tipo.PAIS)
+    series = []
+    for localidade, filtro in (
+        (estado, Q(estado=estado)),
+        (estado.regiao, Q(regiao=estado.regiao)),
+        (brasil, Q(regiao=brasil)),
+    ):
+        registros = anotar_registros(do_indicador.filter(filtro)).order_by("ano")
+        registros = registros.select_related(
+            "estado", "regiao", "indicador", "indicador__fonte_taxa", "fonte"
+        )
+        series.append((localidade, list(registros)))
+    return series
