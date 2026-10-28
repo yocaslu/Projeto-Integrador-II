@@ -264,3 +264,68 @@ class ComparacaoSerializer(serializers.Serializer):
     ano_min = serializers.IntegerField()
     ano_max = serializers.IntegerField()
     series = SerieSerializer(many=True)
+
+
+# Metadados (contrato, seção 4.10)
+
+
+class CodigoNomeSerializer(serializers.Serializer):
+    codigo = serializers.CharField()
+    nome = serializers.CharField()
+
+
+class CargaSerializer(serializers.Serializer):
+    versao = serializers.CharField()
+    concluida_em = serializers.DateTimeField()
+    total_registros = serializers.IntegerField()
+    arquivos = serializers.ListField(child=serializers.DictField(child=serializers.CharField()))
+
+
+class IntervaloDeAnosSerializer(serializers.Serializer):
+    min = serializers.IntegerField()
+    max = serializers.IntegerField()
+
+
+class FonteDoMetadadoSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    slug = serializers.CharField()
+    nome = serializers.CharField()
+
+
+class NoDeIndicadorSerializer(IndicadorSerializer):
+    """Nó da árvore de indicadores: os campos do exemplo do contrato, com os filhos aninhados."""
+
+    subtipos = serializers.SerializerMethodField()
+
+    class Meta(IndicadorSerializer.Meta):
+        fields = [
+            "slug",
+            "nome",
+            "unidade_padrao",
+            "unidades",
+            "base_taxa",
+            "fonte_taxa",
+            "possui_registros",
+            "anos",
+            "recortes",
+            "subtipos",
+        ]
+
+    def get_subtipos(self, indicador: Indicador) -> list[dict]:
+        filhos = self.context["filhos"].get(indicador.id, [])
+        return NoDeIndicadorSerializer(filhos, many=True, context=self.context).data
+
+
+# A árvore é recursiva: no OpenAPI, `subtipos` referencia o próprio componente NoDeIndicador.
+extend_schema_field(NoDeIndicadorSerializer(many=True))(NoDeIndicadorSerializer.get_subtipos)
+
+
+class MetadadosSerializer(serializers.Serializer):
+    carga = CargaSerializer()
+    anos = IntervaloDeAnosSerializer()
+    niveis = serializers.ListField(child=serializers.CharField())
+    unidades = CodigoNomeSerializer(many=True)
+    situacoes = CodigoNomeSerializer(many=True)
+    metodos = CodigoNomeSerializer(many=True)
+    fontes = FonteDoMetadadoSerializer(many=True)
+    indicadores = NoDeIndicadorSerializer(many=True)
