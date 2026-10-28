@@ -17,7 +17,8 @@ Restrições no banco (regra 14):
 """
 
 from django.db import models
-from django.db.models import Q
+from django.db.models import F, Q, Value
+from django.db.models.functions import Coalesce
 
 from apps.localidades.models import LOCALIDADE_EXCLUSIVA
 from apps.registros.escolhas import Metodo, Situacao, Unidade
@@ -82,6 +83,17 @@ class RegistroAnual(models.Model):
         ]
         indexes = [
             models.Index(fields=["indicador", "unidade", "ano"], name="registro_indicador_ano"),
+            # Mesmas expressões das subconsultas de apps/registros/queries.py (ano anterior,
+            # total do indicador e do pai), que comparam campos anuláveis com COALESCE.
+            models.Index(
+                Coalesce("estado", Value(0)),
+                Coalesce("regiao", Value(0)),
+                F("indicador"),
+                Coalesce("recorte", Value(0)),
+                F("unidade"),
+                F("ano"),
+                name="registro_chave_subconsultas",
+            ),
         ]
 
     def __str__(self) -> str:

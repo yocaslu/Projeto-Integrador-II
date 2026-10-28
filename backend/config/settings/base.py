@@ -71,6 +71,9 @@ DATABASES = {
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", ""),
         "HOST": os.environ.get("POSTGRES_HOST", "localhost"),
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
+        # JIT desligado: nas subconsultas de taxa, variação e participação, a compilação JIT
+        # custava ~3 s e a execução ~0,3 s (ADR 0008; RNF02).
+        "OPTIONS": {"options": "-c jit=off"},
     }
 }
 
