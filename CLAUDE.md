@@ -206,7 +206,7 @@ projeto-integrador-ii/
 │   │   │   └── referencia.py          # fontes (slug, ordem fixa) e hierarquia de indicadores (slug, pai, unidade_padrao, base_taxa, fonte_taxa)
 │   │   ├── registros/                 # RegistroAnual
 │   │   │   ├── escolhas.py            # Situacao, Metodo, Unidade (TextChoices usados pelos modelos e pela importação)
-│   │   │   └── queries.py             # anotar_registros (taxa, variação, participação por subconsulta), ordenacao, ordem canônica  ✎ ranking, comparação
+│   │   │   └── queries.py             # anotar_registros (taxa, variação, participação por subconsulta), ordenacao, ordem canônica, ranking, comparacao
 │   │   ├── importacao/
 │   │   │   ├── models.py              # Carga
 │   │   │   ├── mapeamento.py          # especificação declarativa das tabelas (T01–T21) e contagem esperada

@@ -8,6 +8,68 @@ info:
     name: AGPL-3.0
     url: https://www.gnu.org/licenses/agpl-3.0.html
 paths:
+  /api/v1/comparacao/:
+    get:
+      operationId: api_v1_comparacao_retrieve
+      description: 'Três séries, nesta ordem: a UF, a região da UF e o Brasil, cada
+        uma com os pontos por ano crescente (RF13; contrato, 4.9). Totais regionais
+        calculados pelo projeto vêm com `metodo = soma_ufs`.'
+      summary: UF × região × Brasil
+      parameters:
+      - in: query
+        name: ano_max
+        schema:
+          type: integer
+        description: 'Padrão: o último ano com registros do indicador.'
+      - in: query
+        name: ano_min
+        schema:
+          type: integer
+        description: 'Padrão: o primeiro ano com registros do indicador.'
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: query
+        name: indicador
+        schema:
+          type: string
+        description: Um slug. Agrupador → 400.
+        required: true
+      - in: query
+        name: recorte
+        schema:
+          type: string
+        description: '`total` (padrão) ou um id de /recortes/. `todos` ou lista →
+          400.'
+      - in: query
+        name: uf
+        schema:
+          type: string
+        description: Uma sigla de UF.
+        required: true
+      - in: query
+        name: unidade
+        schema:
+          type: string
+          enum:
+          - ocorrencias
+          - vitimas
+        description: 'Uma unidade; padrão: a unidade padrão do indicador.'
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comparacao'
+          description: ''
   /api/v1/estados/:
     get:
       operationId: api_v1_estados_list
@@ -226,6 +288,67 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginaDePopulacao'
+          description: ''
+  /api/v1/ranking/:
+    get:
+      operationId: api_v1_ranking_retrieve
+      description: 'As 27 UFs em ordem decrescente do critério, sobre o valor já arredondado.
+        Empates têm a mesma posição (1, 2, 2, 4) e se desempatam por sigla; UF sem
+        dado vem ao final com `posicao: null`. Os parâmetros efetivos, inclusive os
+        padrões resolvidos, vêm ecoados na resposta (contrato, 4.8).'
+      summary: Ranking das UFs
+      parameters:
+      - in: query
+        name: ano
+        schema:
+          type: integer
+        description: 'Um ano; padrão: o último ano com registros do indicador.'
+      - in: query
+        name: criterio
+        schema:
+          type: string
+          enum:
+          - participacao
+          - taxa
+          - valor
+        description: '`taxa` (padrão), `valor` ou `participacao`.'
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: query
+        name: indicador
+        schema:
+          type: string
+        description: Um slug. Agrupador → 400.
+        required: true
+      - in: query
+        name: recorte
+        schema:
+          type: string
+        description: '`total` (padrão) ou um id de /recortes/. `todos` ou lista →
+          400.'
+      - in: query
+        name: unidade
+        schema:
+          type: string
+          enum:
+          - ocorrencias
+          - vitimas
+        description: 'Uma unidade; padrão: a unidade padrão do indicador.'
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ranking'
           description: ''
   /api/v1/recortes/:
     get:
@@ -470,6 +593,42 @@ components:
     BlankEnum:
       enum:
       - ''
+    Comparacao:
+      type: object
+      properties:
+        indicador:
+          $ref: '#/components/schemas/IndicadorComBase'
+        unidade:
+          $ref: '#/components/schemas/UnidadeEnum'
+        recorte:
+          allOf:
+          - $ref: '#/components/schemas/RecorteDoRegistro'
+          nullable: true
+        ano_min:
+          type: integer
+        ano_max:
+          type: integer
+        series:
+          type: array
+          items:
+            $ref: '#/components/schemas/Serie'
+      required:
+      - ano_max
+      - ano_min
+      - indicador
+      - recorte
+      - series
+      - unidade
+    CriterioEnum:
+      enum:
+      - taxa
+      - valor
+      - participacao
+      type: string
+      description: |-
+        * `taxa` - taxa
+        * `valor` - valor
+        * `participacao` - participacao
     Estado:
       type: object
       properties:
@@ -590,6 +749,20 @@ components:
       - subtipos
       - unidade_padrao
       - unidades
+    IndicadorComBase:
+      type: object
+      properties:
+        slug:
+          type: string
+        nome:
+          type: string
+        base_taxa:
+          type: string
+          nullable: true
+      required:
+      - base_taxa
+      - nome
+      - slug
     IndicadorResumo:
       type: object
       properties:
@@ -600,6 +773,48 @@ components:
       required:
       - nome
       - slug
+    ItemDoRanking:
+      type: object
+      description: Campos de valor de um registro, sem `taxa_publicada`, que fica
+        em /registros/.
+      properties:
+        posicao:
+          type: integer
+          nullable: true
+        localidade:
+          $ref: '#/components/schemas/Localidade'
+        valor:
+          type: string
+          pattern: ^-?\d+$
+          example: '5800'
+          readOnly: true
+          nullable: true
+        situacao:
+          $ref: '#/components/schemas/SituacaoEnum'
+        metodo:
+          $ref: '#/components/schemas/MetodoEnum'
+        taxa:
+          $ref: '#/components/schemas/Taxa'
+        variacao:
+          $ref: '#/components/schemas/Variacao'
+        participacao:
+          $ref: '#/components/schemas/Participacao'
+        fonte:
+          $ref: '#/components/schemas/FonteResumo'
+        observacao:
+          type: string
+          nullable: true
+      required:
+      - fonte
+      - localidade
+      - metodo
+      - observacao
+      - participacao
+      - posicao
+      - situacao
+      - taxa
+      - valor
+      - variacao
     Localidade:
       type: object
       description: '`{"nivel", "codigo", "codigo_ibge", "nome"}` de um registro ou
@@ -617,6 +832,23 @@ components:
         nome:
           type: string
           readOnly: true
+      required:
+      - codigo
+      - codigo_ibge
+      - nivel
+      - nome
+    LocalidadeFixa:
+      type: object
+      description: A localidade de uma série, montada por `campos.localidade_de`.
+      properties:
+        nivel:
+          type: string
+        codigo:
+          type: string
+        codigo_ibge:
+          type: string
+        nome:
+          type: string
       required:
       - codigo
       - codigo_ibge
@@ -695,6 +927,44 @@ components:
       required:
       - referencia
       - valor_pct
+    Ponto:
+      type: object
+      description: Campos de valor de um registro, sem `taxa_publicada`, que fica
+        em /registros/.
+      properties:
+        ano:
+          type: integer
+        valor:
+          type: string
+          pattern: ^-?\d+$
+          example: '5800'
+          readOnly: true
+          nullable: true
+        situacao:
+          $ref: '#/components/schemas/SituacaoEnum'
+        metodo:
+          $ref: '#/components/schemas/MetodoEnum'
+        taxa:
+          $ref: '#/components/schemas/Taxa'
+        variacao:
+          $ref: '#/components/schemas/Variacao'
+        participacao:
+          $ref: '#/components/schemas/Participacao'
+        fonte:
+          $ref: '#/components/schemas/FonteResumo'
+        observacao:
+          type: string
+          nullable: true
+      required:
+      - ano
+      - fonte
+      - metodo
+      - observacao
+      - participacao
+      - situacao
+      - taxa
+      - valor
+      - variacao
     Populacao:
       type: object
       description: Item de /populacao/ (contrato, 4.6).
@@ -718,6 +988,32 @@ components:
       - id
       - localidade
       - valor
+    Ranking:
+      type: object
+      properties:
+        indicador:
+          $ref: '#/components/schemas/IndicadorComBase'
+        ano:
+          type: integer
+        criterio:
+          $ref: '#/components/schemas/CriterioEnum'
+        unidade:
+          $ref: '#/components/schemas/UnidadeEnum'
+        recorte:
+          allOf:
+          - $ref: '#/components/schemas/RecorteDoRegistro'
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemDoRanking'
+      required:
+      - ano
+      - criterio
+      - indicador
+      - recorte
+      - results
+      - unidade
     Recorte:
       type: object
       properties:
@@ -910,6 +1206,18 @@ components:
       - unidade
       - valor
       - variacao
+    Serie:
+      type: object
+      properties:
+        localidade:
+          $ref: '#/components/schemas/LocalidadeFixa'
+        pontos:
+          type: array
+          items:
+            $ref: '#/components/schemas/Ponto'
+      required:
+      - localidade
+      - pontos
     SituacaoEnum:
       enum:
       - informado
