@@ -14,11 +14,11 @@ Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qua
 
 ## Escopo atual
 
-**O foco agora é exclusivamente o backend: modelos, importação da planilha e API `/api/v1/`.**
+**A fase do backend está concluída**: modelos, importação da planilha, API `/api/v1/` com todos os recursos do contrato (inclusive CSV e cache), esquema OpenAPI e teste de desempenho do RNF02. Mudanças no backend seguem as regras abaixo. **A próxima fase é o frontend**, que só começa com pedido explícito.
 
 - O frontend (React, Recharts, Leaflet) e os testes de ponta a ponta (Playwright + axe-core) **vêm depois**. Não crie, altere nem instale nada em `frontend/` ou `e2e/` sem pedido explícito, e suba só `db` e `backend` no Docker Compose.
-- Ordem de entrega: `localidades` e `catalogo` → `importacao` (comando + relatório de validação) → `registros` (consultas de taxa, variação, ranking, comparação) → `api` (endpoints, filtros, erros, CSV, cache) → documentação OpenAPI.
-- Ordem dentro da app `api` (cada passo com os testes da seção 8 do contrato que lhe cabem):
+- Ordem de entrega (concluída): `localidades` e `catalogo` → `importacao` (comando + relatório de validação) → `registros` (consultas de taxa, variação, ranking, comparação) → `api` (endpoints, filtros, erros, CSV, cache) → documentação OpenAPI.
+- Ordem dentro da app `api` (concluída; cada passo com os testes da seção 8 do contrato que lhe cabem):
   1. `parametros.py` (regras comuns da seção 2 do contrato) e `campos.py` (decimais da seção 1.2);
   2. catálogos: `/regioes/`, `/estados/`, `/fontes/`, `/indicadores/`, `/recortes/`;
   3. `queries.py`: anotação de taxa, variação e participação no SQL (precisão total, sempre na mesma unidade), ordem canônica de localidades;
@@ -36,8 +36,9 @@ Rodam a partir da raiz do repositório. Serviços do Compose: `db`, `backend` e 
 **Primeira vez**
 ```bash
 cp .env.example .env
-(cd backend && uv lock)        # só se backend/uv.lock não existir: o Dockerfile e o CI usam --locked
 docker compose up -d --build db backend
+docker compose exec backend uv run python manage.py migrate
+docker compose exec backend uv run python manage.py importar_anuario
 ```
 
 **Dia a dia**
@@ -52,15 +53,18 @@ docker compose up -d --build db backend
 | Aplicar migrações | `docker compose exec backend uv run python manage.py migrate` |
 | Verificar migração pendente | `docker compose exec backend uv run python manage.py makemigrations --check --dry-run` |
 | Importar os dados | `docker compose exec backend uv run python manage.py importar_anuario` |
+| Inspecionar a planilha (nova edição) | `docker compose exec backend uv run python manage.py inspecionar_planilha T03 T08` |
 | Testes com cobertura (≥ 75%) | `docker compose exec backend uv run pytest` |
 | Um teste específico | `docker compose exec backend uv run pytest tests/importacao/test_normalizacao.py -k inexistente` |
+| Importação da planilha real | `docker compose exec backend uv run pytest -m planilha_real --no-cov` |
+| Desempenho (RNF02) | `docker compose exec backend uv run pytest -m desempenho --no-cov` |
 | Lint e formatação (verificar) | `docker compose exec backend uv run ruff check . && docker compose exec backend uv run ruff format --check .` |
 | Lint e formatação (corrigir) | `docker compose exec backend uv run ruff check --fix . && docker compose exec backend uv run ruff format .` |
 | Gerar o esquema OpenAPI versionado | `docker compose exec -T backend uv run python manage.py spectacular --validate --fail-on-warn > docs/api/openapi.yaml` |
 | Adicionar dependência | `cd backend && uv add <pacote>==<versão>` (ou `uv add --dev`) |
 
 Notas:
-- `uv run pytest` já aplica `--cov` e `fail_under = 75` pelo `pyproject.toml`; não repita as opções.
+- `uv run pytest` já aplica `--cov` e `fail_under = 75` pelo `pyproject.toml`; não repita as opções. Os testes `planilha_real` e `desempenho` ficam fora da execução padrão e rodam em passos próprios do CI.
 - `importar_anuario` lê `--dados` (padrão `DADOS_BRUTOS_DIR=/dados/brutos`) e grava o relatório em `--relatorio` (padrão `DADOS_RELATORIOS_DIR=/dados/relatorios`). `./dados` é montado em `/dados` no container. Os hashes são conferidos contra `dados/README.md` (outro arquivo com `--manifesto`). `--somente-validar` lê, confere e gera o relatório sem gravar nada; `--estrito` termina com erro se o relatório tiver divergência. Antes de ajustar `mapeamento.py` para uma nova edição da planilha, rode `inspecionar_planilha [ABA ...]`.
 - Sem Docker, os mesmos comandos funcionam dentro de `backend/` com `uv run ...`, apontando `POSTGRES_HOST=localhost`.
 
@@ -127,7 +131,7 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 - Catálogos (`/regioes/`, `/estados/`, `/indicadores/`, `/recortes/`, `/fontes/`): array JSON na raiz, sem paginação.
 - `/registros/` e `/populacao/`: paginados (`pagina` padrão 1, `tamanho` padrão 100, máx. 1000, acima → 400), envelope `count`/`next`/`previous`/`results`.
 - `/ranking/`, `/comparacao/`, `/metadados/`: objeto, com os parâmetros efetivos (inclusive padrões resolvidos) ecoados.
-- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`), `recorte` (`null` | `id`, `rotulo`, `itens`), `unidade`, `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte` = `indicador.fonte_taxa`, nula quando `valor` é nulo), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct` = variação da taxa, a mesma do FBSP), `participacao` (`referencia` {`tipo`, `indicador`} | `null`, `valor_pct`), `fonte`, `observacao`.
+- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`), `recorte` (`null` | `id`, `rotulo`, `itens`), `unidade`, `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte` = `indicador.fonte_taxa`; `origem` e `fonte` nulas sempre que não há taxa, ADR 0008), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct` = variação da taxa, a mesma do FBSP), `participacao` (`referencia` {`tipo`, `indicador`} | `null`, `valor_pct`), `fonte`, `observacao`.
 - `participacao`: sem recorte, valor ÷ indicador-pai × 100 (`indicador_pai`); com recorte, valor ÷ total do mesmo indicador × 100 (`total_do_indicador`); mesma localidade, ano e unidade; nula em raízes e filhos de agrupador. Substitui as proporções da T09 e da T21. Nunca somar participações.
 
 **Decimais** (texto, `COERCE_DECIMAL_TO_STRING = True`)
@@ -142,11 +146,11 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 - `incluir_subtipos=true` exige `indicador` e traz todos os descendentes. `indicador=furto` sem ele → 400.
 - `ordenar`: `ano`, `indicador` (por `ordem`), `localidade` (canônica), `recorte`, `unidade`, `valor`, `taxa`, `variacao_valor`, `variacao_taxa`, `participacao`. Padrão `indicador, localidade, recorte, unidade, ano`; desempate final por `id`; nulos ao final nas duas direções; taxa, variação e participação anotadas e ordenadas no SQL.
 
-**`/ranking/`**: `indicador` (um, obrigatório), `ano` (um; padrão = último ano com dados do indicador), `criterio` (`taxa` padrão | `valor` | `participacao`), `unidade` (uma; padrão = `unidade_padrao`), `recorte` (`total` padrão | um id). Só as 27 UFs, decrescente, empates (1, 2, 2, 4), nulos ao final com `posicao: null`.
+**`/ranking/`**: `indicador` (um, obrigatório), `ano` (um; padrão = último ano com dados do indicador), `criterio` (`taxa` padrão | `valor` | `participacao`), `unidade` (uma; padrão = `unidade_padrao`), `recorte` (`total` padrão | um id). Só as 27 UFs, decrescente, empates (1, 2, 2, 4), nulos ao final com `posicao: null`. Itens sem `taxa_publicada` (fica só em `/registros/`).
 
-**`/comparacao/`**: `uf` (uma, obrigatória), `indicador` (um, obrigatório), `ano_min`/`ano_max` (padrão = anos do indicador), `unidade` (uma; padrão = `unidade_padrao`), `recorte` (`total` padrão | um id). `series` = [UF, região da UF, Brasil], cada uma com `pontos` por ano, os mesmos anos nas três.
+**`/comparacao/`**: `uf` (uma, obrigatória), `indicador` (um, obrigatório), `ano_min`/`ano_max` (padrão = anos do indicador), `unidade` (uma; padrão = `unidade_padrao`), `recorte` (`total` padrão | um id). `series` = [UF, região da UF, Brasil], cada uma com `pontos` por ano, os mesmos anos nas três. Pontos sem `taxa_publicada`.
 
-**`/metadados/`**: `carga`, `anos` (min/max), `niveis`, `unidades`, `situacoes`, `metodos`, `fontes` e a árvore aninhada de `indicadores` (com `unidade_padrao`, `unidades`, `anos` e `recortes` de cada um). `/indicadores/` traz `unidade_padrao` e `unidades` em vez de `unidade`.
+**`/metadados/`**: `carga`, `anos` (min/max), `niveis`, `unidades`, `situacoes`, `metodos`, `fontes` e a árvore aninhada de `indicadores` (cada nó com os mesmos campos de um item de `/indicadores/`, e `subtipos` com os objetos dos filhos). `/indicadores/` traz `unidade_padrao` e `unidades` em vez de `unidade`.
 
 **Parâmetros, CSV e erros**
 - Parâmetro desconhecido, repetido (`uf=SP&uf=RJ`) ou vazio → 400. Valor inexistente em parâmetro de consulta (`uf=XX`) → 400; 404 só para caminho (`/estados/XX/`).
@@ -186,7 +190,7 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 
 ## Estrutura do repositório
 
-Árvore atual com as mudanças propostas: ✚ a criar, ✎ a ajustar. Itens sem marca já existem.
+Árvore atual.
 
 ```
 projeto-integrador-ii/
@@ -246,7 +250,7 @@ projeto-integrador-ii/
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
 
-Motivos das mudanças:
+Motivos da organização:
 - **`referencia.py` em `localidades` e `catalogo`**: dados de referência fixos vivem no código, revisados em PR, e são carregados pelo `importar_anuario` antes dos fatos.
 - **`importacao` em leitura → normalização → gravação → validação**: cada etapa testável isoladamente; o mapeamento é dado, não lógica espalhada.
 - **`inspecionar_planilha`**: a planilha muda de layout entre edições; o comando mostra os caminhos de cabeçalho antes de alguém ajustar `mapeamento.py`.
@@ -306,7 +310,7 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 
 **API**
 15. API somente leitura: `ReadOnlyModelViewSet` ou `APIView` com `GET`; nada de `create/update/destroy`.
-16. Parâmetro de consulta desconhecido → 400 (o padrão do django-filter, de ignorar, é desligado).
+16. Parâmetro de consulta desconhecido → 400. A validação é feita por `apps/api/v1/parametros.py` (`LeitorParametros`), e não pelo django-filter, que ignoraria o parâmetro.
 17. `uf` e `regiao` são parâmetros separados (SE = Sergipe ≠ Sudeste).
 18. `recorte=total` e `unidade=padrao` são os padrões de `/registros/`; nunca devolver totais misturados com recortes, nem vítimas misturadas com ocorrências, por omissão.
 19. Decimais saem como texto; nunca `coerce_to_string=False`.

@@ -304,7 +304,7 @@ def ler_tabela(wb, t: Tabela) -> list[Linha]:
                 linha.taxa_publicada = celula.valor
             linha.marcas |= set(marcas_linha + marcas_col)
     for linha in linhas.values():
-        linha.observacao = juntar_notas(notas, linha.marcas, ignorar=NOTAS_GENERICAS)
+        linha.observacao = juntar_notas(notas, linha.marcas)   # marcas da linha e do ano; não as da base da taxa
     conferir_contagem(linhas, t)                      # localidades × anos × blocos (cada unidade é um bloco)
     return list(linhas.values())
 ```
@@ -320,7 +320,7 @@ def ler_tabela(wb, t: Tabela) -> list[Linha]:
 
   Esse texto precisa conter a `base_taxa` do indicador do bloco (`100 mil habitantes`, `100 mil mulheres`, `100 mil veículos`, `100 instituições`), comparado sem acento, sem diferença de caixa e com espaços normalizados (`Taxa por 100 instituições financeiras` casa com `100 instituições`). Grupo de taxa sem base no rótulo e sem marca, marca sem nota correspondente ou base diferente abortam a importação; é a proteção contra blocos trocados entre edições. Nunca se procura uma nota de número fixo. Conferido na planilha versionada: todas as colunas de taxa das tabelas lidas passam.
 
-`NOTAS_GENERICAS`: notas que não descrevem o dado e não vão para `observacao`, como "Taxa por 100 mil habitantes". A nota "Atualização das informações publicadas no Anuário…" **vai**, porque informa que o valor de 2024 foi revisado (RF11).
+Notas em `observacao`: as marcadas no rótulo da linha e no ano do cabeçalho, em ordem numérica. A nota marcada no grupo de taxa declara a base (é conferida acima) e não descreve o dado, por isso não entra; as notas sem marca nas colunas lidas (ex.: definição do indicador no título) também não. A nota "Atualização das informações publicadas no Anuário…" **vai**, porque informa que o valor de 2024 foi revisado (RF11). O código está em `apps/importacao/leitores/fbsp.py`; os nomes do pseudocódigo acima são os das funções de lá.
 
 ### 4.4 Normalização de célula
 

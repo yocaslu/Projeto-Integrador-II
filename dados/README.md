@@ -3,8 +3,13 @@
 ## `brutos/`
 
 Arquivos oficiais usados pelo comando `importar_anuario`. São versionados para que a importação
-possa ser reproduzida mesmo se as fontes trocarem os arquivos publicados. Ao substituir um
-arquivo, atualize a tabela abaixo (`sha256sum dados/brutos/*`).
+possa ser reproduzida mesmo se as fontes trocarem os arquivos publicados. Nunca edite um arquivo
+daqui: nova versão de planilha é arquivo novo, com o novo hash na tabela abaixo, em commit próprio.
+
+**Esta tabela é o manifesto que o `importar_anuario` lê** (`--manifesto`, padrão: este arquivo).
+Todo arquivo listado precisa existir em `brutos/` com o mesmo SHA-256 (`sha256sum dados/brutos/*`),
+senão a importação aborta antes de gravar. Mantenha o formato das linhas: nome e hash entre
+crases, o hash na última coluna.
 
 | Arquivo | Fonte | Conteúdo | SHA-256 |
 | --- | --- | --- | --- |
@@ -16,5 +21,10 @@ Pendente: registrar a URL de download e a data de acesso de cada arquivo.
 
 ## `relatorios/`
 
-Relatórios de validação gerados a cada importação (RF12), com as divergências entre as taxas
-calculadas e as publicadas pelo FBSP. Não são versionados.
+Relatórios de validação gerados a cada importação (RF12), em `validacao-<versao>.csv` (um
+apontamento por linha) e `validacao-<versao>.md` (resumo). Comparam, sem arredondar e com
+tolerância de 1e-6, as taxas calculadas pela população do IBGE com as publicadas, a variação da
+taxa com a coluna "Variação (%)", a participação com as proporções da T09 e da T21 e as tabelas de
+conferência (T01, T09); também trazem informações (regiões calculadas, somas parciais, contagem
+por situação) e avisos (células vazias, registros órfãos). Não são versionados. Especificação em
+`docs/importacao.md`, seção 5.
