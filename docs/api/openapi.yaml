@@ -985,8 +985,9 @@ components:
         * `soma_ufs` - Calculado pelo projeto como soma das UFs
     NoDeIndicador:
       type: object
-      description: 'Nó da árvore de indicadores: os campos do exemplo do contrato,
-        com os filhos aninhados.'
+      description: |-
+        Nó da árvore de indicadores: os campos de um item de /indicadores/, na mesma ordem, com
+        `subtipos` trazendo os objetos dos filhos em vez dos slugs (contrato, 4.10).
       properties:
         slug:
           type: string
@@ -995,6 +996,8 @@ components:
         nome:
           type: string
           maxLength: 120
+        descricao:
+          type: string
         unidade_padrao:
           $ref: '#/components/schemas/UnidadeEnum'
         unidades:
@@ -1013,6 +1016,14 @@ components:
           allOf:
           - $ref: '#/components/schemas/FonteResumo'
           nullable: true
+        indicador_pai:
+          type: string
+          readOnly: true
+        subtipos:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoDeIndicador'
+          readOnly: true
         possui_registros:
           type: boolean
           readOnly: true
@@ -1027,14 +1038,10 @@ components:
           items:
             $ref: '#/components/schemas/RecorteResumo'
           readOnly: true
-        subtipos:
-          type: array
-          items:
-            $ref: '#/components/schemas/NoDeIndicador'
-          readOnly: true
       required:
       - anos
       - fonte_taxa
+      - indicador_pai
       - nome
       - possui_registros
       - recortes
