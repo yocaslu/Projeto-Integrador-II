@@ -187,3 +187,80 @@ class PaginaDeRegistrosSerializer(_Pagina):
 
 class PaginaDePopulacaoSerializer(_Pagina):
     results = PopulacaoSerializer(many=True)
+
+
+# Ranking e comparação (contrato, seções 4.8 e 4.9)
+
+
+class IndicadorComBaseSerializer(serializers.Serializer):
+    slug = serializers.CharField()
+    nome = serializers.CharField()
+    base_taxa = serializers.CharField(allow_null=True)
+
+
+class LocalidadeFixaSerializer(serializers.Serializer):
+    """A localidade de uma série, montada por `campos.localidade_de`."""
+
+    nivel = serializers.CharField()
+    codigo = serializers.CharField()
+    codigo_ibge = serializers.CharField()
+    nome = serializers.CharField()
+
+
+class _ValoresDoRegistro(serializers.Serializer):
+    """Campos de valor de um registro, sem `taxa_publicada`, que fica em /registros/."""
+
+    valor = campos.CampoInteiro(allow_null=True)
+    situacao = serializers.ChoiceField(choices=Situacao.choices)
+    metodo = serializers.ChoiceField(choices=Metodo.choices)
+    taxa = campos.TaxaSerializer(source="*")
+    variacao = campos.VariacaoSerializer(source="*")
+    participacao = campos.ParticipacaoSerializer(source="*")
+    fonte = campos.FonteResumoSerializer()
+    observacao = serializers.CharField(allow_null=True)
+
+
+class ItemDoRankingSerializer(_ValoresDoRegistro):
+    posicao = serializers.IntegerField(allow_null=True)
+    localidade = campos.LocalidadeSerializer(source="*")
+
+    class Meta:
+        fields = ["posicao", "localidade", *_ValoresDoRegistro._declared_fields]
+
+    def get_fields(self):
+        campos_ = super().get_fields()
+        return {nome: campos_[nome] for nome in self.Meta.fields}
+
+
+class RankingSerializer(serializers.Serializer):
+    indicador = IndicadorComBaseSerializer()
+    ano = serializers.IntegerField()
+    criterio = serializers.ChoiceField(choices=["taxa", "valor", "participacao"])
+    unidade = serializers.ChoiceField(choices=Unidade.choices)
+    recorte = RecorteDoRegistroSerializer(allow_null=True)
+    results = ItemDoRankingSerializer(many=True)
+
+
+class PontoSerializer(_ValoresDoRegistro):
+    ano = serializers.IntegerField()
+
+    class Meta:
+        fields = ["ano", *_ValoresDoRegistro._declared_fields]
+
+    def get_fields(self):
+        campos_ = super().get_fields()
+        return {nome: campos_[nome] for nome in self.Meta.fields}
+
+
+class SerieSerializer(serializers.Serializer):
+    localidade = LocalidadeFixaSerializer()
+    pontos = PontoSerializer(many=True)
+
+
+class ComparacaoSerializer(serializers.Serializer):
+    indicador = IndicadorComBaseSerializer()
+    unidade = serializers.ChoiceField(choices=Unidade.choices)
+    recorte = RecorteDoRegistroSerializer(allow_null=True)
+    ano_min = serializers.IntegerField()
+    ano_max = serializers.IntegerField()
+    series = SerieSerializer(many=True)

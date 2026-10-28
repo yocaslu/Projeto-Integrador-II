@@ -549,7 +549,8 @@ Não aceita `ano` (use `ano_min` = `ano_max`), `nivel`, `regiao` nem `ordenar`.
 - `pontos` em ordem crescente de ano, com os **mesmos anos** nas três séries (a importação garante
   as 33 localidades em todos os anos de cada indicador; há teste).
 - Cada ponto tem os mesmos campos de um registro, menos `id`, `localidade`, `indicador`,
-  `recorte` e `unidade`, que já estão no nível de cima.
+  `recorte` e `unidade`, que já estão no nível de cima, e menos `taxa_publicada`, que fica só em
+  `/registros/`, como nos itens de `/ranking/` e nas colunas do CSV (5.3).
 
 ### 4.10 `/metadados/`
 

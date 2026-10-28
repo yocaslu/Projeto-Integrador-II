@@ -21,6 +21,7 @@ from rest_framework.views import APIView
 
 from apps.api.erros import SemCargaConcluida
 from apps.api.paginacao import paginar
+from apps.api.v1 import campos
 from apps.api.v1 import serializers as s
 from apps.api.v1.parametros import Anos, LeitorParametros, Localidades
 from apps.catalogo.models import Fonte, Indicador, Recorte, RecorteItem
@@ -31,9 +32,12 @@ from apps.registros.models import RegistroAnual
 from apps.registros.queries import (
     CAMPOS_DE_ORDENACAO,
     CAMPOS_DE_ORDENACAO_DA_POPULACAO,
+    CRITERIOS_DO_RANKING,
     ORDEM_PADRAO_DA_POPULACAO,
     anotar_registros,
+    comparacao,
     ordenacao,
+    ranking,
 )
 
 FORMATO_JSON = OpenApiParameter(
@@ -585,3 +589,213 @@ class ListaPopulacao(RecursoV1):
         itens, envelope = paginar(request, ordenada, total, paginacao)
         envelope["results"] = s.PopulacaoSerializer(itens, many=True).data
         return Response(envelope)
+
+
+# Ranking e comparação (contrato, seções 4.8 e 4.9)
+
+
+class _ConsultaDeUmIndicador(RecursoV1):
+    """Regras comuns a /ranking/ e /comparacao/: um indicador, uma unidade, um recorte."""
+
+    def _ler_indicador_unidade_recorte(self):
+        """Indicador (objeto), unidade, recorte (objeto ou None) e os anos com registros deles.
+
+        Acumula os erros no LeitorParametros; devolve None no lugar do que for inválido.
+        """
+        p = self.parametros
+        indicadores = {
+            i.slug: i for i in Indicador.objects.select_related("fonte_taxa", "indicador_pai")
+        }
+        slug = p.unico("indicador", set(indicadores), obrigatorio=True)
+        unidade_pedida = p.unico("unidade", set(Unidade.values))
+        ids_de_recorte = {str(i) for i in Recorte.objects.values_list("id", flat=True)}
+        recorte_pedido = p.unico("recorte", {RECORTE_TOTAL, *ids_de_recorte})
+
+        indicador = indicadores.get(slug) if slug else None
+        if indicador is None:
+            return None, None, None, set()
+        combinacoes = set(
+            RegistroAnual.objects.filter(indicador=indicador)
+            .values_list("unidade", "recorte_id", "ano")
+            .distinct()
+        )
+        if not combinacoes:
+            p.erro(
+                "indicador",
+                f"O indicador {slug} não tem registros próprios; consulte os subtipos.",
+            )
+            return None, None, None, set()
+
+        unidade = unidade_pedida or indicador.unidade_padrao
+        if p.valido("unidade") and not any(u == unidade for u, _, _ in combinacoes):
+            p.erro("unidade", f"O indicador {slug} não tem registros em {unidade}.")
+            return indicador, None, None, set()
+
+        recorte = None
+        if recorte_pedido and recorte_pedido != RECORTE_TOTAL:
+            recorte = Recorte.objects.prefetch_related(
+                Prefetch("itens", queryset=RecorteItem.objects.order_by("dimensao"))
+            ).get(id=int(recorte_pedido))
+        recorte_id = recorte.id if recorte else None
+        anos = {a for u, r, a in combinacoes if u == unidade and r == recorte_id}
+        if p.valido("recorte") and recorte is not None and not anos:
+            p.erro(
+                "recorte",
+                f"O recorte {recorte.id} não tem registros de {slug} em {unidade}.",
+            )
+        return indicador, unidade, recorte, anos
+
+    @staticmethod
+    def _recorte(recorte):
+        return s.RecorteDoRegistroSerializer(recorte).data if recorte else None
+
+    @staticmethod
+    def _indicador(indicador):
+        return s.IndicadorComBaseSerializer(indicador).data
+
+
+PARAMETROS_DE_UM_INDICADOR = [
+    OpenApiParameter("indicador", str, required=True, description="Um slug. Agrupador → 400."),
+    OpenApiParameter(
+        "unidade",
+        str,
+        enum=Unidade.values,
+        description="Uma unidade; padrão: a unidade padrão do indicador.",
+    ),
+    OpenApiParameter(
+        "recorte",
+        str,
+        description="`total` (padrão) ou um id de /recortes/. `todos` ou lista → 400.",
+    ),
+]
+
+
+class Ranking(_ConsultaDeUmIndicador):
+    parametros_permitidos = ("indicador", "ano", "criterio", "unidade", "recorte")
+
+    @extend_schema(
+        summary="Ranking das UFs",
+        description="As 27 UFs em ordem decrescente do critério, sobre o valor já arredondado. "
+        "Empates têm a mesma posição (1, 2, 2, 4) e se desempatam por sigla; UF sem dado vem ao "
+        "final com `posicao: null`. Os parâmetros efetivos, inclusive os padrões resolvidos, vêm "
+        "ecoados na resposta (contrato, 4.8).",
+        parameters=[
+            *PARAMETROS_DE_UM_INDICADOR,
+            OpenApiParameter(
+                "ano",
+                int,
+                description="Um ano; padrão: o último ano com registros do indicador.",
+            ),
+            OpenApiParameter(
+                "criterio",
+                str,
+                enum=list(CRITERIOS_DO_RANKING),
+                description="`taxa` (padrão), `valor` ou `participacao`.",
+            ),
+            FORMATO_JSON,
+        ],
+        responses=s.RankingSerializer,
+    )
+    def get(self, request, version):
+        p = self.parametros
+        indicador, unidade, recorte, anos = self._ler_indicador_unidade_recorte()
+        ano = p.ano("ano", _intervalo_de_anos())
+        criterio = p.unico("criterio", set(CRITERIOS_DO_RANKING)) or "taxa"
+
+        if indicador is not None and unidade is not None and p.valido("ano"):
+            if ano is None and anos:
+                ano = max(anos)
+            elif ano is not None and ano not in anos:
+                p.erro("ano", f"O indicador {indicador.slug} não tem registros em {ano}.")
+        if indicador is not None and p.valido("criterio"):
+            if criterio == "taxa" and indicador.base_taxa is None:
+                p.erro("criterio", f"O indicador {indicador.slug} não tem base de taxa.")
+            sem_pai = (
+                indicador.indicador_pai_id is None
+                or not RegistroAnual.objects.filter(
+                    indicador_id=indicador.indicador_pai_id
+                ).exists()
+            )
+            if criterio == "participacao" and recorte is None and sem_pai:
+                p.erro(
+                    "criterio",
+                    f"O indicador {indicador.slug} não tem referência de participação "
+                    "(indicador-raiz ou filho de agrupador).",
+                )
+        p.validar()
+
+        itens = []
+        for posicao, registro in ranking(
+            indicador.id, ano, unidade, recorte.id if recorte else None, criterio
+        ):
+            registro.posicao = posicao
+            itens.append(registro)
+        dados = {
+            "indicador": self._indicador(indicador),
+            "ano": ano,
+            "criterio": criterio,
+            "unidade": unidade,
+            "recorte": self._recorte(recorte),
+            "results": s.ItemDoRankingSerializer(itens, many=True).data,
+        }
+        return Response(dados)
+
+
+class Comparacao(_ConsultaDeUmIndicador):
+    parametros_permitidos = ("uf", "indicador", "ano_min", "ano_max", "unidade", "recorte")
+
+    @extend_schema(
+        summary="UF × região × Brasil",
+        description="Três séries, nesta ordem: a UF, a região da UF e o Brasil, cada uma com os "
+        "pontos por ano crescente (RF13; contrato, 4.9). Totais regionais calculados pelo projeto "
+        "vêm com `metodo = soma_ufs`.",
+        parameters=[
+            OpenApiParameter("uf", str, required=True, description="Uma sigla de UF."),
+            *PARAMETROS_DE_UM_INDICADOR,
+            OpenApiParameter(
+                "ano_min", int, description="Padrão: o primeiro ano com registros do indicador."
+            ),
+            OpenApiParameter(
+                "ano_max", int, description="Padrão: o último ano com registros do indicador."
+            ),
+            FORMATO_JSON,
+        ],
+        responses=s.ComparacaoSerializer,
+    )
+    def get(self, request, version):
+        p = self.parametros
+        ufs, _ = _siglas()
+        uf = p.unico("uf", ufs, maiusculas=True, obrigatorio=True)
+        indicador, unidade, recorte, anos = self._ler_indicador_unidade_recorte()
+        intervalo = _intervalo_de_anos()
+        ano_min, ano_max = p.ano("ano_min", intervalo), p.ano("ano_max", intervalo)
+        if ano_min is not None and ano_max is not None and ano_min > ano_max:
+            p.erro("", "ano_min não pode ser maior que ano_max.")
+
+        if indicador is not None and unidade is not None and anos:
+            ano_min = min(anos) if ano_min is None else ano_min
+            ano_max = max(anos) if ano_max is None else ano_max
+            intervalo_valido = p.valido("ano_min") and p.valido("ano_max") and ano_min <= ano_max
+            if intervalo_valido and not any(ano_min <= ano <= ano_max for ano in anos):
+                p.erro(
+                    "",
+                    f"O indicador {indicador.slug} não tem registros entre {ano_min} e {ano_max}.",
+                )
+        p.validar()
+
+        estado = Estado.objects.select_related("regiao").get(sigla=uf)
+        series = [
+            {"localidade": campos.localidade_de(localidade), "pontos": registros}
+            for localidade, registros in comparacao(
+                estado, indicador.id, unidade, recorte.id if recorte else None, ano_min, ano_max
+            )
+        ]
+        dados = {
+            "indicador": self._indicador(indicador),
+            "unidade": unidade,
+            "recorte": self._recorte(recorte),
+            "ano_min": ano_min,
+            "ano_max": ano_max,
+            "series": s.SerieSerializer(series, many=True).data,
+        }
+        return Response(dados)

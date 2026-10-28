@@ -21,7 +21,9 @@ urlpatterns = [
     path("populacao/", views.ListaPopulacao.as_view(), name="populacao"),
     path("registros/", views.ListaRegistros.as_view(), name="registros"),
     path("registros/<int:id>/", views.DetalheRegistro.as_view(), name="registro"),
-    # A implementar: ranking, comparacao e metadados.
+    path("ranking/", views.Ranking.as_view(), name="ranking"),
+    path("comparacao/", views.Comparacao.as_view(), name="comparacao"),
+    # A implementar: metadados.
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
     path("redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),

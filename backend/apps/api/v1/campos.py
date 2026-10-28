@@ -189,3 +189,14 @@ class ParticipacaoSerializer(serializers.Serializer):
         if registro.participacao_tipo is None:
             return None
         return {"tipo": registro.participacao_tipo, "indicador": registro.participacao_indicador}
+
+
+def localidade_de(objeto) -> dict:
+    """`{"nivel", "codigo", "codigo_ibge", "nome"}` de um Estado ou de uma Regiao."""
+    nivel = getattr(objeto, "tipo", "uf")
+    return {
+        "nivel": nivel,
+        "codigo": objeto.sigla,
+        "codigo_ibge": objeto.codigo_ibge,
+        "nome": objeto.nome,
+    }
