@@ -7,15 +7,10 @@ a precisão do tipo NUMERIC (RNF10). Os catálogos não levam fonte por item (CL
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from apps.api.v1 import campos
 from apps.catalogo.models import Fonte, Indicador, Recorte
 from apps.localidades.models import Estado, Regiao
-from apps.registros.escolhas import Unidade
-
-
-class FonteResumoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Fonte
-        fields = ["id", "nome"]
+from apps.registros.escolhas import Metodo, Situacao, Unidade
 
 
 class FonteSerializer(serializers.ModelSerializer):
@@ -82,7 +77,7 @@ class IndicadorSerializer(serializers.ModelSerializer):
     unidades = serializers.SerializerMethodField(
         help_text="Unidades com registros, na ordem vitimas, ocorrencias."
     )
-    fonte_taxa = FonteResumoSerializer(allow_null=True)
+    fonte_taxa = campos.FonteResumoSerializer(allow_null=True)
     indicador_pai = serializers.SlugRelatedField(slug_field="slug", read_only=True)
     subtipos = serializers.SerializerMethodField(help_text="Slugs dos filhos diretos, na ordem.")
     possui_registros = serializers.SerializerMethodField()
@@ -132,3 +127,63 @@ class IndicadorSerializer(serializers.ModelSerializer):
             (self.context["recortes"][i] for i in resumo.recortes), key=lambda r: r.chave
         )
         return RecorteResumoSerializer(recortes, many=True).data
+
+
+# Registros e população (contrato, seções 4.6 e 4.7.4)
+
+
+class IndicadorResumoSerializer(serializers.Serializer):
+    slug = serializers.CharField()
+    nome = serializers.CharField()
+
+
+class RecorteDoRegistroSerializer(serializers.Serializer):
+    """`{"id", "rotulo", "itens"}`; `itens` na ordem da chave (dimensões em ordem alfabética)."""
+
+    id = serializers.IntegerField()
+    rotulo = serializers.CharField()
+    itens = RecorteItemSerializer(many=True)
+
+
+class RegistroSerializer(serializers.Serializer):
+    """Item de /registros/ e corpo de /registros/{id}/ (contrato, 4.7.4)."""
+
+    id = serializers.IntegerField()
+    ano = serializers.IntegerField()
+    localidade = campos.LocalidadeSerializer(source="*")
+    indicador = IndicadorResumoSerializer()
+    recorte = RecorteDoRegistroSerializer(allow_null=True)
+    unidade = serializers.ChoiceField(choices=Unidade.choices)
+    valor = campos.CampoInteiro(allow_null=True)
+    situacao = serializers.ChoiceField(choices=Situacao.choices)
+    metodo = serializers.ChoiceField(choices=Metodo.choices)
+    taxa = campos.TaxaSerializer(source="*")
+    taxa_publicada = campos.CampoPrecisaoGuardada(allow_null=True)
+    variacao = campos.VariacaoSerializer(source="*")
+    participacao = campos.ParticipacaoSerializer(source="*")
+    fonte = campos.FonteResumoSerializer()
+    observacao = serializers.CharField(allow_null=True)
+
+
+class PopulacaoSerializer(serializers.Serializer):
+    """Item de /populacao/ (contrato, 4.6)."""
+
+    id = serializers.IntegerField()
+    ano = serializers.IntegerField()
+    localidade = campos.LocalidadeSerializer(source="*")
+    valor = campos.CampoInteiro()
+    fonte = campos.FonteResumoSerializer()
+
+
+class _Pagina(serializers.Serializer):
+    count = serializers.IntegerField()
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+
+
+class PaginaDeRegistrosSerializer(_Pagina):
+    results = RegistroSerializer(many=True)
+
+
+class PaginaDePopulacaoSerializer(_Pagina):
+    results = PopulacaoSerializer(many=True)

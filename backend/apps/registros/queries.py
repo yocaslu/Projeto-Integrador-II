@@ -282,8 +282,21 @@ CAMPOS_DE_ORDENACAO = {
 
 ORDEM_PADRAO = ("indicador", "localidade", "recorte", "unidade", "ano")
 
+CAMPOS_DE_ORDENACAO_DA_POPULACAO = {
+    "ano": CAMPOS_DE_ORDENACAO["ano"],
+    "localidade": ordem_canonica_localidade,
+    "valor": CAMPOS_DE_ORDENACAO["valor"],
+}
+"""Nomes aceitos em `ordenar` de /populacao/ (contrato, 4.6)."""
 
-def ordenacao(pedidos: Iterable[str] = ()) -> list[OrderBy]:
+ORDEM_PADRAO_DA_POPULACAO = ("localidade", "ano")
+
+
+def ordenacao(
+    pedidos: Iterable[str] = (),
+    campos: dict = CAMPOS_DE_ORDENACAO,
+    padrao: tuple[str, ...] = ORDEM_PADRAO,
+) -> list[OrderBy]:
     """Critérios pedidos, depois a ordem padrão, depois `id`: ordem total e determinística.
 
     Prefixo `-` inverte; nulos ficam sempre ao final, nas duas direções (contrato, 4.7.3). Taxa,
@@ -292,11 +305,11 @@ def ordenacao(pedidos: Iterable[str] = ()) -> list[OrderBy]:
     """
     pedidos = list(pedidos)
     nomes = {pedido.removeprefix("-") for pedido in pedidos}
-    criterios = pedidos + [campo for campo in ORDEM_PADRAO if campo not in nomes]
+    criterios = pedidos + [campo for campo in padrao if campo not in nomes]
     ordem: list[OrderBy] = []
     for criterio in criterios:
         decrescente = criterio.startswith("-")
-        for expressao in CAMPOS_DE_ORDENACAO[criterio.removeprefix("-")]():
+        for expressao in campos[criterio.removeprefix("-")]():
             ordem.append(
                 expressao.desc(nulls_last=True) if decrescente else expressao.asc(nulls_last=True)
             )

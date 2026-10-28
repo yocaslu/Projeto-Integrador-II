@@ -125,6 +125,14 @@ class LeitorParametros:
         self._erros[nome].append(mensagem)
         self._invalidos.add(nome)
 
+    def erro(self, nome: str, mensagem: str) -> None:
+        """Acrescenta um erro de uma regra que depende de dados (ex.: unidade sem registros)."""
+        self._erro(nome, mensagem)
+
+    def valido(self, nome: str) -> bool:
+        """Indica se o parâmetro não acumulou erro (informado ou não)."""
+        return nome not in self._invalidos
+
     @property
     def erros(self) -> dict[str, list[str]]:
         return dict(self._erros)

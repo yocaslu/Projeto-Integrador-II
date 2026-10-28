@@ -152,6 +152,81 @@ paths:
               schema:
                 $ref: '#/components/schemas/Indicador'
           description: ''
+  /api/v1/populacao/:
+    get:
+      operationId: api_v1_populacao_lista
+      description: 'Estimativas do IBGE usadas no cálculo das taxas (contrato, 4.6).
+        Mesma regra de nível de /registros/: sem `nivel`, só as UFs.'
+      summary: População
+      parameters:
+      - in: query
+        name: ano
+        schema:
+          type: string
+        description: 'Lista de anos (ex.: `2024,2025`).'
+      - in: query
+        name: ano_max
+        schema:
+          type: integer
+        description: Último ano do intervalo fechado.
+      - in: query
+        name: ano_min
+        schema:
+          type: integer
+        description: Primeiro ano do intervalo fechado.
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: query
+        name: nivel
+        schema:
+          type: string
+        description: 'Lista de `pais`, `regiao`, `uf`. Sem `nivel`, `uf` nem `regiao`:
+          só as UFs. Misturar níveis só por lista explícita (ex.: `pais,regiao,uf`),
+          e então sem `uf`/`regiao`.'
+      - in: query
+        name: ordenar
+        schema:
+          type: string
+        description: 'Lista de `ano`, `localidade`, `valor`; `-` inverte. Ordem padrão:
+          localidade (canônica), ano; depois `id`.'
+      - in: query
+        name: pagina
+        schema:
+          type: integer
+        description: Página, a partir de 1. Além da última → 400.
+      - in: query
+        name: regiao
+        schema:
+          type: string
+        description: 'Lista de siglas de região (N, NE, SE, S, CO); exige `nivel`:
+          com `nivel=uf`, as UFs da região; com `nivel=regiao`, o agregado. `BR` →
+          400.'
+      - in: query
+        name: tamanho
+        schema:
+          type: integer
+        description: 'Itens por página: padrão 100, máximo 1000.'
+      - in: query
+        name: uf
+        schema:
+          type: string
+        description: 'Lista de siglas de UF (ex.: `SP,RJ`); implica `nivel=uf`.'
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaDePopulacao'
+          description: ''
   /api/v1/recortes/:
     get:
       operationId: api_v1_recortes_list
@@ -242,6 +317,142 @@ paths:
               schema:
                 $ref: '#/components/schemas/Regiao'
           description: ''
+  /api/v1/registros/:
+    get:
+      operationId: api_v1_registros_lista
+      description: 'Tabela de fatos com valor, taxa, variação, participação, situação
+        do dado, método e fonte (contrato, 4.7). Por padrão, só totais (`recorte=total`),
+        na unidade padrão de cada indicador (`unidade=padrao`) e só as UFs: vítimas
+        e ocorrências, totais e recortes, Brasil, regiões e UFs nunca se misturam
+        por omissão.'
+      summary: Registros
+      parameters:
+      - in: query
+        name: ano
+        schema:
+          type: string
+        description: 'Lista de anos (ex.: `2024,2025`).'
+      - in: query
+        name: ano_max
+        schema:
+          type: integer
+        description: Último ano do intervalo fechado.
+      - in: query
+        name: ano_min
+        schema:
+          type: integer
+        description: Primeiro ano do intervalo fechado.
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: query
+        name: incluir_subtipos
+        schema:
+          type: boolean
+        description: '`true` inclui todos os descendentes dos indicadores; exige `indicador`.'
+      - in: query
+        name: indicador
+        schema:
+          type: string
+        description: Lista de slugs. Agrupador (`furto`) exige `incluir_subtipos=true`.
+      - in: query
+        name: nivel
+        schema:
+          type: string
+        description: 'Lista de `pais`, `regiao`, `uf`. Sem `nivel`, `uf` nem `regiao`:
+          só as UFs. Misturar níveis só por lista explícita (ex.: `pais,regiao,uf`),
+          e então sem `uf`/`regiao`.'
+      - in: query
+        name: ordenar
+        schema:
+          type: string
+        description: 'Lista de campos; `-` inverte. Campos: ano, indicador, localidade,
+          recorte, unidade, valor, taxa, variacao_valor, variacao_taxa, participacao.
+          Depois vem a ordem padrão (indicador, localidade, recorte, unidade, ano)
+          e `id`; nulos sempre ao final.'
+      - in: query
+        name: pagina
+        schema:
+          type: integer
+        description: Página, a partir de 1. Além da última → 400.
+      - in: query
+        name: recorte
+        schema:
+          type: string
+        description: '`total` (padrão): só registros sem recorte; `todos`; ou lista
+          de ids de /recortes/ (só esses recortes).'
+      - in: query
+        name: regiao
+        schema:
+          type: string
+        description: 'Lista de siglas de região (N, NE, SE, S, CO); exige `nivel`:
+          com `nivel=uf`, as UFs da região; com `nivel=regiao`, o agregado. `BR` →
+          400.'
+      - in: query
+        name: situacao
+        schema:
+          type: string
+        description: Lista de `informado`, `inexistente`, `nao_disponivel`.
+      - in: query
+        name: tamanho
+        schema:
+          type: integer
+        description: 'Itens por página: padrão 100, máximo 1000.'
+      - in: query
+        name: uf
+        schema:
+          type: string
+        description: 'Lista de siglas de UF (ex.: `SP,RJ`); implica `nivel=uf`.'
+      - in: query
+        name: unidade
+        schema:
+          type: string
+        description: '`padrao` (padrão): a unidade padrão de cada indicador; `todas`;
+          ou lista de `vitimas`, `ocorrencias`.'
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaDeRegistros'
+          description: ''
+  /api/v1/registros/{id}/:
+    get:
+      operationId: api_v1_registros_detalhe
+      description: O mesmo objeto de um item de /registros/; id inexistente → 404.
+      summary: Um registro
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Registro'
+          description: ''
 components:
   schemas:
     BaseTaxaEnum:
@@ -308,10 +519,8 @@ components:
       properties:
         id:
           type: integer
-          readOnly: true
         nome:
           type: string
-          maxLength: 200
       required:
       - id
       - nome
@@ -330,7 +539,7 @@ components:
         descricao:
           type: string
         unidade_padrao:
-          $ref: '#/components/schemas/UnidadePadraoEnum'
+          $ref: '#/components/schemas/UnidadeEnum'
         unidades:
           type: array
           items:
@@ -381,9 +590,134 @@ components:
       - subtipos
       - unidade_padrao
       - unidades
+    IndicadorResumo:
+      type: object
+      properties:
+        slug:
+          type: string
+        nome:
+          type: string
+      required:
+      - nome
+      - slug
+    Localidade:
+      type: object
+      description: '`{"nivel", "codigo", "codigo_ibge", "nome"}` de um registro ou
+        de uma população.'
+      properties:
+        nivel:
+          type: string
+          readOnly: true
+        codigo:
+          type: string
+          readOnly: true
+        codigo_ibge:
+          type: string
+          readOnly: true
+        nome:
+          type: string
+          readOnly: true
+      required:
+      - codigo
+      - codigo_ibge
+      - nivel
+      - nome
+    MetodoEnum:
+      enum:
+      - publicado
+      - soma_ufs
+      type: string
+      description: |-
+        * `publicado` - Publicado pelo FBSP
+        * `soma_ufs` - Calculado pelo projeto como soma das UFs
     NullEnum:
       enum:
       - null
+    PaginaDePopulacao:
+      type: object
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Populacao'
+      required:
+      - count
+      - next
+      - previous
+      - results
+    PaginaDeRegistros:
+      type: object
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          format: uri
+          nullable: true
+        previous:
+          type: string
+          format: uri
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Registro'
+      required:
+      - count
+      - next
+      - previous
+      - results
+    Participacao:
+      type: object
+      description: Parcela no indicador-pai ou no total do indicador; não some participações.
+      properties:
+        referencia:
+          allOf:
+          - $ref: '#/components/schemas/Referencia'
+          nullable: true
+          readOnly: true
+        valor_pct:
+          type: string
+          pattern: ^-?\d+\.\d{2}$
+          example: '40.94'
+          readOnly: true
+          nullable: true
+      required:
+      - referencia
+      - valor_pct
+    Populacao:
+      type: object
+      description: Item de /populacao/ (contrato, 4.6).
+      properties:
+        id:
+          type: integer
+        ano:
+          type: integer
+        localidade:
+          $ref: '#/components/schemas/Localidade'
+        valor:
+          type: string
+          pattern: ^-?\d+$
+          example: '5800'
+          readOnly: true
+        fonte:
+          $ref: '#/components/schemas/FonteResumo'
+      required:
+      - ano
+      - fonte
+      - id
+      - localidade
+      - valor
     Recorte:
       type: object
       properties:
@@ -412,6 +746,23 @@ components:
       - indicadores
       - itens
       - rotulo
+    RecorteDoRegistro:
+      type: object
+      description: '`{"id", "rotulo", "itens"}`; `itens` na ordem da chave (dimensões
+        em ordem alfabética).'
+      properties:
+        id:
+          type: integer
+        rotulo:
+          type: string
+        itens:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecorteItem'
+      required:
+      - id
+      - itens
+      - rotulo
     RecorteItem:
       type: object
       properties:
@@ -434,6 +785,24 @@ components:
       required:
       - id
       - rotulo
+    Referencia:
+      type: object
+      properties:
+        tipo:
+          $ref: '#/components/schemas/ReferenciaTipoEnum'
+        indicador:
+          type: string
+      required:
+      - indicador
+      - tipo
+    ReferenciaTipoEnum:
+      enum:
+      - indicador_pai
+      - total_do_indicador
+      type: string
+      description: |-
+        * `indicador_pai` - indicador_pai
+        * `total_do_indicador` - total_do_indicador
     Regiao:
       type: object
       properties:
@@ -444,7 +813,7 @@ components:
           type: string
           maxLength: 50
         tipo:
-          $ref: '#/components/schemas/TipoEnum'
+          $ref: '#/components/schemas/RegiaoTipoEnum'
         codigo_ibge:
           type: string
           maxLength: 2
@@ -472,7 +841,7 @@ components:
       required:
       - nome
       - sigla
-    TipoEnum:
+    RegiaoTipoEnum:
       enum:
       - regiao
       - pais
@@ -480,7 +849,105 @@ components:
       description: |-
         * `regiao` - Região
         * `pais` - País
-    UnidadePadraoEnum:
+    Registro:
+      type: object
+      description: Item de /registros/ e corpo de /registros/{id}/ (contrato, 4.7.4).
+      properties:
+        id:
+          type: integer
+        ano:
+          type: integer
+        localidade:
+          $ref: '#/components/schemas/Localidade'
+        indicador:
+          $ref: '#/components/schemas/IndicadorResumo'
+        recorte:
+          allOf:
+          - $ref: '#/components/schemas/RecorteDoRegistro'
+          nullable: true
+        unidade:
+          $ref: '#/components/schemas/UnidadeEnum'
+        valor:
+          type: string
+          pattern: ^-?\d+$
+          example: '5800'
+          readOnly: true
+          nullable: true
+        situacao:
+          $ref: '#/components/schemas/SituacaoEnum'
+        metodo:
+          $ref: '#/components/schemas/MetodoEnum'
+        taxa:
+          $ref: '#/components/schemas/Taxa'
+        taxa_publicada:
+          type: string
+          pattern: ^-?\d+(\.\d{1,12})?$
+          example: '40.9415826'
+          readOnly: true
+          nullable: true
+        variacao:
+          $ref: '#/components/schemas/Variacao'
+        participacao:
+          $ref: '#/components/schemas/Participacao'
+        fonte:
+          $ref: '#/components/schemas/FonteResumo'
+        observacao:
+          type: string
+          nullable: true
+      required:
+      - ano
+      - fonte
+      - id
+      - indicador
+      - localidade
+      - metodo
+      - observacao
+      - participacao
+      - recorte
+      - situacao
+      - taxa
+      - taxa_publicada
+      - unidade
+      - valor
+      - variacao
+    SituacaoEnum:
+      enum:
+      - informado
+      - inexistente
+      - nao_disponivel
+      type: string
+      description: |-
+        * `informado` - Informado
+        * `inexistente` - Fenômeno inexistente
+        * `nao_disponivel` - Informação não disponível
+    Taxa:
+      type: object
+      description: Sempre presente; `origem` e `fonte` nulas quando não há taxa (ADR
+        0008).
+      properties:
+        valor:
+          type: string
+          pattern: ^-?\d+\.\d{2}$
+          example: '40.94'
+          readOnly: true
+          nullable: true
+        base:
+          type: string
+          nullable: true
+        origem:
+          type: string
+          nullable: true
+        fonte:
+          allOf:
+          - $ref: '#/components/schemas/FonteResumo'
+          nullable: true
+          readOnly: true
+      required:
+      - base
+      - fonte
+      - origem
+      - valor
+    UnidadeEnum:
       enum:
       - vitimas
       - ocorrencias
@@ -488,3 +955,26 @@ components:
       description: |-
         * `vitimas` - Número de vítimas
         * `ocorrencias` - Número de ocorrências
+    Variacao:
+      type: object
+      description: Em relação ao ano anterior; `taxa_pct` é a variação da taxa, a
+        mesma do FBSP.
+      properties:
+        ano_referencia:
+          type: integer
+        valor_pct:
+          type: string
+          pattern: ^-?\d+\.\d{2}$
+          example: '40.94'
+          readOnly: true
+          nullable: true
+        taxa_pct:
+          type: string
+          pattern: ^-?\d+\.\d{2}$
+          example: '40.94'
+          readOnly: true
+          nullable: true
+      required:
+      - ano_referencia
+      - taxa_pct
+      - valor_pct
