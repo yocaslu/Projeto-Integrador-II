@@ -131,7 +131,7 @@ e participação são sempre calculadas **dentro da mesma unidade**.
 **Recorte** — `null` quando o registro é o total do indicador.
 ```json
 {
-  "id": 3,
+  "id": 2,
   "rotulo": "Polícia Militar, em serviço",
   "itens": [
     {"dimensao": "corporacao", "valor": "Polícia Militar"},
@@ -306,7 +306,7 @@ Parâmetros: `indicador` (lista de slugs). Ordem: por `chave`.
 
 ```json
 [
-  {"id": 3, "rotulo": "Polícia Militar, em serviço",
+  {"id": 2, "rotulo": "Polícia Militar, em serviço",
    "chave": "corporacao=Polícia Militar;situacao_policial=Em serviço",
    "itens": [{"dimensao": "corporacao", "valor": "Polícia Militar"},
              {"dimensao": "situacao_policial", "valor": "Em serviço"}],
@@ -719,34 +719,48 @@ Details, com `Cache-Control: no-store` e sem `ETag`:
 ## 8. Testes de contrato obrigatórios
 
 Cada item vira ao menos um teste em `backend/tests/api/` (os de cálculo também em
-`tests/registros/`).
+`tests/registros/`). Todos estão implementados; entre parênteses, onde.
 
-- [ ] Parâmetro desconhecido, repetido e vazio → 400 em todos os recursos, com o nome em `erros`.
-- [ ] `formato=json` aceito em todos; `formato=csv` → 406 nos recursos sem CSV; `formato=xml` → 406.
-- [ ] `pagina`/`tamanho` → 400 em recursos sem paginação e com CSV; `tamanho=1001` → 400.
-- [ ] Cada linha da tabela 4.7.2 (nível, UF e região), um teste por linha.
-- [ ] `recorte` padrão `total` não traz recortes; `todos` traz; id inexistente → 400.
-- [ ] `incluir_subtipos=true` em `homicidio-doloso` traz `homicidio-mulheres` e `feminicidio`.
-- [ ] `indicador=furto` sem `incluir_subtipos` → 400; com ele, só `furto-veiculo` e `furto-celular`.
-- [ ] `unidade` padrão: `homicidio-doloso` sai só em vítimas; `unidade=todas` traz vítimas e
+- [x] Parâmetro desconhecido, repetido e vazio → 400 em todos os recursos, com o nome em `erros`
+      (`test_regras_comuns.py`, `test_catalogos.py`, `test_parametros.py`).
+- [x] `formato=json` aceito em todos; `formato=csv` → 406 nos recursos sem CSV; `formato=xml` → 406
+      (`test_regras_comuns.py`, `test_catalogos.py`, `test_csv.py`).
+- [x] `pagina`/`tamanho` → 400 em recursos sem paginação e com CSV; `tamanho=1001` → 400
+      (`test_catalogos.py`, `test_csv.py`, `test_registros.py`).
+- [x] Cada linha da tabela 4.7.2 (nível, UF e região), um teste por linha (`test_registros.py`).
+- [x] `recorte` padrão `total` não traz recortes; `todos` traz; id inexistente → 400
+      (`test_registros.py`).
+- [x] `incluir_subtipos=true` em `homicidio-doloso` traz `homicidio-mulheres` e `feminicidio`
+      (`test_registros.py`).
+- [x] `indicador=furto` sem `incluir_subtipos` → 400; com ele, só `furto-veiculo` e `furto-celular`
+      (`test_registros.py`).
+- [x] `unidade` padrão: `homicidio-doloso` sai só em vítimas; `unidade=todas` traz vítimas e
       ocorrências; `indicador=mvi&unidade=ocorrencias` → 400; ranking e comparação ecoam a
-      unidade resolvida.
-- [ ] Participação: MDIP total ÷ MVI e feminicídio ÷ homicídio de mulheres batem com a T09 e a T21
+      unidade resolvida (`test_registros.py`, `test_ranking_comparacao.py`).
+- [x] Participação: MDIP total ÷ MVI e feminicídio ÷ homicídio de mulheres batem com a T09 e a T21
       (até 1e-6, antes de arredondar); recorte da T08 ÷ total de MDIP; `mvi` e `furto-*` com
-      `referencia: null`; homicídio doloso em ocorrências com `valor_pct: null`.
-- [ ] Formatos decimais da tabela 1.2, inclusive arredondamento meio para longe do zero (`x.xx5`)
-      e ausência de `-0.00`.
-- [ ] `ordenar=taxa` e `ordenar=-taxa` com nulos ao final; paginação sem itens repetidos nem
-      perdidos ao percorrer todas as páginas com ordenação por campo com empates.
-- [ ] Ranking: 27 itens, empates (1, 2, 2, 4) pelo valor arredondado, nulos ao final com
-      `posicao: null`, `ano` padrão resolvido e ecoado.
-- [ ] Comparação: 3 séries na ordem UF, região, Brasil, com os mesmos anos; região `soma_ufs`
-      sem taxa nas bases sem denominador.
-- [ ] CSV: cabeçalho exato de cada recurso (comparar a string), sem BOM, `\r\n`, campo vazio para
-      nulo, erro de validação em JSON, limite de linhas (com o limite reduzido no teste).
-- [ ] Cache: `ETag` diferente para JSON e CSV, `Vary: Accept`, 304 com `If-None-Match`.
-- [ ] Sem carga concluída: 503 em todos os recursos, com `Cache-Control: no-store` e sem `ETag`;
-      `schema`, `docs` e `redoc` com 200. Carga em andamento ou com falha não muda o ETag vigente.
-- [ ] Fontes: banco limpo cria os ids 1 a 5 na ordem da seção 4.5; `taxa.fonte` de cada base de
-      taxa é a fonte da tabela do ADR 0005; `taxa.fonte` nula quando `taxa.valor` é nulo.
-- [ ] Nenhuma consulta N+1 (`django_assert_max_num_queries`) em listas, ranking e comparação.
+      `referencia: null`; homicídio doloso em ocorrências com `valor_pct: null`
+      (`tests/registros/test_anotacoes.py`, `test_registros.py`).
+- [x] Formatos decimais da tabela 1.2, inclusive arredondamento meio para longe do zero (`x.xx5`)
+      e ausência de `-0.00` (`test_campos.py`, `test_registros.py`).
+- [x] `ordenar=taxa` e `ordenar=-taxa` com nulos ao final; paginação sem itens repetidos nem
+      perdidos ao percorrer todas as páginas com ordenação por campo com empates
+      (`test_registros.py`, `tests/registros/test_anotacoes.py`).
+- [x] Ranking: 27 itens, empates (1, 2, 2, 4) pelo valor arredondado, nulos ao final com
+      `posicao: null`, `ano` padrão resolvido e ecoado (`test_ranking_comparacao.py`).
+- [x] Comparação: 3 séries na ordem UF, região, Brasil, com os mesmos anos; região `soma_ufs`
+      sem taxa nas bases sem denominador (`test_ranking_comparacao.py`).
+- [x] CSV: cabeçalho exato de cada recurso (comparar a string), sem BOM, `\r\n`, campo vazio para
+      nulo, erro de validação em JSON, limite de linhas (com o limite reduzido no teste)
+      (`test_csv.py`).
+- [x] Cache: `ETag` diferente para JSON e CSV, `Vary: Accept`, 304 com `If-None-Match`
+      (`test_cache.py`).
+- [x] Sem carga concluída: 503 em todos os recursos, com `Cache-Control: no-store` e sem `ETag`;
+      `schema`, `docs` e `redoc` com 200. Carga em andamento ou com falha não muda o ETag vigente
+      (`test_catalogos.py`, `test_cache.py`).
+- [x] Fontes: banco limpo cria os ids 1 a 5 na ordem da seção 4.5; `taxa.fonte` de cada base de
+      taxa é a fonte da tabela do ADR 0005; `taxa.fonte` nula quando `taxa.valor` é nulo
+      (`tests/importacao/test_processo.py`, `test_regras_comuns.py`).
+- [x] Nenhuma consulta N+1 (`django_assert_max_num_queries`) em listas, ranking e comparação
+      (`test_catalogos.py`, `test_registros.py`, `test_ranking_comparacao.py`, `test_csv.py`,
+      `test_metadados.py`, `tests/desempenho/test_p95.py`).

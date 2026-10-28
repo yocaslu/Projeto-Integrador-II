@@ -37,7 +37,8 @@ UFs, de 2012 a 2025. Logo, a soma reproduz o método do FBSP.
 
 - `/comparacao/` e `nivel=regiao` passam a ter dados para todos os indicadores do escopo.
 - A carga passa de 1.582 para 1.782 registros (200 `soma_ufs`, dos quais 24 `nao_disponivel`
-  nos recortes da T08).
+  nos recortes da T08). (Atualizado em 2026-10-28: com as ocorrências de T03–T05, decididas no
+  ADR 0004, a carga é de 1.980 registros, 230 deles `soma_ufs`, com os mesmos 24 nulos.)
 - `REGISTROS_ANUAIS` ganha o campo `metodo`; `taxa_publicada` fica nula nos registros
   `soma_ufs`. (Corrigido em 2026-10-27: `origem` não é nula, lista as células somadas, e
   `observacao` traz as notas das UFs, como já fazem `agregacao.py` e seus testes; ver
