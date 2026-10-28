@@ -223,8 +223,8 @@ projeto-integrador-ii/
 │   │   └── api/
 │   │       ├── v1/                    # urls, views, serializers, filtros
 │   │       │   ├── parametros.py      # LeitorParametros: desconhecido/repetido/vazio → 400, listas, anos, nível × uf × região, ordenar
-│   │       │   └── campos.py          # campos decimais (inteiro, 2 casas, precisão guardada)  ✎ objetos localidade/taxa/variação
-│   │       └── erros.py · negociacao.py · renderizadores.py · paginacao.py · cache.py
+│   │       │   └── campos.py          # campos decimais (inteiro, 2 casas, precisão guardada) e objetos localidade, taxa, variação, participação
+│   │       └── erros.py · negociacao.py · paginacao.py (paginar: 400 além da última página) · renderizadores.py · cache.py
 │   └── tests/                         # espelha apps/: importacao/, registros/, api/, desempenho/ (RNF02, ADR 0005)
 │       ├── localidades/ · catalogo/
 │       ├── conftest.py
