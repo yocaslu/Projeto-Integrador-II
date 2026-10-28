@@ -97,12 +97,17 @@ REST_FRAMEWORK = {
     "UNAUTHENTICATED_USER": None,
     "DEFAULT_VERSIONING_CLASS": "rest_framework.versioning.URLPathVersioning",
     "ALLOWED_VERSIONS": ["v1"],
+    # Só vale fora de uma requisição (ex.: `manage.py spectacular`); toda rota traz a versão.
+    "DEFAULT_VERSION": "v1",
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
     "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
     "DEFAULT_PAGINATION_CLASS": "apps.api.paginacao.PaginacaoPorPagina",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.api.erros.manipulador_problem_details",
     "COERCE_DECIMAL_TO_STRING": True,
+    # formato=json|csv tem precedência sobre Accept; formato desconhecido → 406 (contrato, 5.1).
+    "URL_FORMAT_OVERRIDE": "formato",
+    "DEFAULT_CONTENT_NEGOTIATION_CLASS": "apps.api.negociacao.NegociacaoPorFormato",
 }
 
 SPECTACULAR_SETTINGS = {
