@@ -5,7 +5,8 @@ Plataforma de análise do **20º Anuário Brasileiro de Segurança Pública (FBS
 **Fonte da verdade:**
 - **API:** `docs/contrato-api.md` (transcrição detalhada do Roteiro, com as decisões do ADR 0003). Prevalece sobre o resumo deste arquivo e sobre o texto do Roteiro.
 - **Importação:** `docs/importacao.md`.
-- **Requisitos e modelagem:** o documento "Roteiro" do projeto, até que a modelagem seja transcrita para `docs/modelagem.md`.
+- **Modelagem:** `docs/modelagem.md` (transcrição do Roteiro com os ajustes dos ADRs). Prevalece sobre o texto do Roteiro.
+- **Requisitos:** o documento "Roteiro" do projeto (resumo na seção "Requisitos" abaixo).
 
 Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qualquer um dos lados.
 
@@ -192,9 +193,9 @@ projeto-integrador-ii/
 ├── CLAUDE.md
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml                     ✎ incluir diff do docs/api/openapi.yaml e `pytest -m desempenho --no-cov`
+│   │   ├── ci.yml                     # Ruff, migrações, pytest, planilha real, diff do openapi.yaml, desempenho
 │   │   └── deploy.yml
-│   └── pull_request_template.md       ✎ checklist da Definição de pronto
+│   └── pull_request_template.md       # checklist da Definição de pronto
 ├── backend/
 │   ├── pyproject.toml · Dockerfile · manage.py · .python-version
 │   ├── uv.lock                        # versionado; o build e o CI usam --locked
@@ -239,8 +240,8 @@ projeto-integrador-ii/
 ├── docs/
 │   ├── importacao.md                  # mapeamento da planilha e algoritmo de extração
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
-│   ├── modelagem.md                   ✚ transcrição da seção do roteiro
-│   ├── api/openapi.yaml               # esquema gerado e versionado  ✎ diff verificado no CI
+│   ├── modelagem.md                   # modelagem de dados (fonte da verdade; transcrição do roteiro com os ADRs)
+│   ├── api/openapi.yaml               # esquema gerado e versionado (diff verificado no CI)
 │   └── adr/                           # 0001 a 0008 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice)
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
@@ -393,4 +394,4 @@ Uma tarefa só está pronta quando **todos** os itens abaixo são verdadeiros:
 - [ ] **Migração criada** quando houve mudança de modelo — `makemigrations --check --dry-run` sem pendências, migração no mesmo commit.
 - [ ] **Documentação OpenAPI atualizada** — `docs/api/openapi.yaml` regenerado e commitado, `spectacular --validate --fail-on-warn` sem avisos; endpoints e parâmetros novos com descrição e exemplo (`@extend_schema`).
 
-Além disso, quando aplicável: ADR para decisão de arquitetura; `docs/importacao.md` (e, quando existirem, `docs/contrato-api.md` e `docs/modelagem.md`) atualizados junto com o código; `.env.example` atualizado para variável nova.
+Além disso, quando aplicável: ADR para decisão de arquitetura; `docs/importacao.md`, `docs/contrato-api.md` e `docs/modelagem.md` atualizados junto com o código; `.env.example` atualizado para variável nova.
