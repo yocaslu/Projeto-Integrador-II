@@ -23,11 +23,11 @@ from apps.api.erros import SemCargaConcluida
 from apps.api.paginacao import paginar
 from apps.api.v1 import campos
 from apps.api.v1 import serializers as s
-from apps.api.v1.parametros import Anos, LeitorParametros, Localidades
+from apps.api.v1.parametros import NIVEIS, Anos, LeitorParametros, Localidades
 from apps.catalogo.models import Fonte, Indicador, Recorte, RecorteItem
 from apps.importacao.models import Carga
 from apps.localidades.models import Estado, Populacao, Regiao
-from apps.registros.escolhas import Situacao, Unidade
+from apps.registros.escolhas import Metodo, Situacao, Unidade
 from apps.registros.models import RegistroAnual
 from apps.registros.queries import (
     CAMPOS_DE_ORDENACAO,
@@ -797,5 +797,46 @@ class Comparacao(_ConsultaDeUmIndicador):
             "ano_min": ano_min,
             "ano_max": ano_max,
             "series": s.SerieSerializer(series, many=True).data,
+        }
+        return Response(dados)
+
+
+# Metadados (contrato, seção 4.10)
+
+
+def _codigos_e_nomes(escolhas) -> list[dict]:
+    return [{"codigo": valor, "nome": nome} for valor, nome in escolhas.choices]
+
+
+class Metadados(RecursoV1):
+    @extend_schema(
+        summary="Metadados",
+        description="Tudo o que o dashboard precisa para montar filtros e legendas numa "
+        "requisição (RF09; contrato, 4.10): a carga atual, os anos, os níveis, as unidades, as "
+        "situações do dado, os métodos, as fontes e a árvore de indicadores, com unidades, anos e "
+        "recortes de cada um.",
+        parameters=[FORMATO_JSON],
+        responses=s.MetadadosSerializer,
+    )
+    def get(self, request, version):
+        self.parametros.validar()
+        indicadores = list(_indicadores())
+        filhos: dict[int, list[Indicador]] = defaultdict(list)
+        for indicador in indicadores:
+            if indicador.indicador_pai_id is not None:
+                filhos[indicador.indicador_pai_id].append(indicador)
+        contexto = _contexto_dos_indicadores() | {"filhos": filhos}
+        raizes = [i for i in indicadores if i.indicador_pai_id is None]
+        minimo, maximo = _intervalo_de_anos()
+
+        dados = {
+            "carga": s.CargaSerializer(self.carga).data,
+            "anos": {"min": minimo, "max": maximo},
+            "niveis": list(NIVEIS),
+            "unidades": _codigos_e_nomes(Unidade),
+            "situacoes": _codigos_e_nomes(Situacao),
+            "metodos": _codigos_e_nomes(Metodo),
+            "fontes": s.FonteDoMetadadoSerializer(Fonte.objects.order_by("id"), many=True).data,
+            "indicadores": s.NoDeIndicadorSerializer(raizes, many=True, context=contexto).data,
         }
         return Response(dados)

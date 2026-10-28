@@ -580,19 +580,22 @@ além de `formato=json`.
   ],
   "fontes": [{"id": 1, "slug": "secretarias-seguranca", "nome": "…"}, "…"],
   "indicadores": [
-    {"slug": "mvi", "nome": "…", "unidade_padrao": "vitimas", "unidades": ["vitimas"],
-     "base_taxa": "100 mil habitantes",
+    {"slug": "mvi", "nome": "…", "descricao": "…", "unidade_padrao": "vitimas",
+     "unidades": ["vitimas"], "base_taxa": "100 mil habitantes",
      "fonte_taxa": {"id": 2, "nome": "IBGE – Estimativas da população residente"},
-     "possui_registros": true, "anos": [2012, 2013, "…", 2025], "recortes": [],
+     "indicador_pai": null,
      "subtipos": [
-       {"slug": "homicidio-doloso", "…": "…",
+       {"slug": "homicidio-doloso", "indicador_pai": "mvi", "…": "…",
         "subtipos": [{"slug": "homicidio-mulheres", "…": "…",
                       "subtipos": [{"slug": "feminicidio", "…": "…", "subtipos": []}]}]}
-     ]}
+     ],
+     "possui_registros": true, "anos": [2012, 2013, "…", 2025], "recortes": []}
   ]
 }
 ```
-- `indicadores` é a **árvore aninhada** (raízes por `ordem`; `subtipos` com objetos completos).
+- `indicadores` é a **árvore aninhada** (raízes por `ordem`). Cada nó tem os mesmos campos, na
+  mesma ordem, de um item de `/indicadores/` (4.3), inclusive `descricao` e `indicador_pai`; a
+  única diferença é que `subtipos` traz os objetos dos filhos, e não os slugs.
 - `carga` vem da carga atual: a `Carga` com status concluído e o maior `concluida_em`. `versao` é
   a mesma usada no ETag. Sem nenhuma carga concluída, `/metadados/` responde 503 como os demais
   recursos (seção 7.1); `carga` nunca é `null`.

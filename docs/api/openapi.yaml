@@ -214,6 +214,33 @@ paths:
               schema:
                 $ref: '#/components/schemas/Indicador'
           description: ''
+  /api/v1/metadados/:
+    get:
+      operationId: api_v1_metadados_retrieve
+      description: 'Tudo o que o dashboard precisa para montar filtros e legendas
+        numa requisição (RF09; contrato, 4.10): a carga atual, os anos, os níveis,
+        as unidades, as situações do dado, os métodos, as fontes e a árvore de indicadores,
+        com unidades, anos e recortes de cada um.'
+      summary: Metadados
+      parameters:
+      - in: query
+        name: formato
+        schema:
+          type: string
+          enum:
+          - json
+        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+      tags:
+      - api
+      security:
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Metadados'
+          description: ''
   /api/v1/populacao/:
     get:
       operationId: api_v1_populacao_lista
@@ -593,6 +620,37 @@ components:
     BlankEnum:
       enum:
       - ''
+    Carga:
+      type: object
+      properties:
+        versao:
+          type: string
+        concluida_em:
+          type: string
+          format: date-time
+        total_registros:
+          type: integer
+        arquivos:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+      required:
+      - arquivos
+      - concluida_em
+      - total_registros
+      - versao
+    CodigoNome:
+      type: object
+      properties:
+        codigo:
+          type: string
+        nome:
+          type: string
+      required:
+      - codigo
+      - nome
     Comparacao:
       type: object
       properties:
@@ -673,6 +731,19 @@ components:
       - nome
       - slug
       - url
+    FonteDoMetadado:
+      type: object
+      properties:
+        id:
+          type: integer
+        slug:
+          type: string
+        nome:
+          type: string
+      required:
+      - id
+      - nome
+      - slug
     FonteResumo:
       type: object
       properties:
@@ -773,6 +844,16 @@ components:
       required:
       - nome
       - slug
+    IntervaloDeAnos:
+      type: object
+      properties:
+        min:
+          type: integer
+        max:
+          type: integer
+      required:
+      - max
+      - min
     ItemDoRanking:
       type: object
       description: Campos de valor de um registro, sem `taxa_publicada`, que fica
@@ -854,6 +935,46 @@ components:
       - codigo_ibge
       - nivel
       - nome
+    Metadados:
+      type: object
+      properties:
+        carga:
+          $ref: '#/components/schemas/Carga'
+        anos:
+          $ref: '#/components/schemas/IntervaloDeAnos'
+        niveis:
+          type: array
+          items:
+            type: string
+        unidades:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodigoNome'
+        situacoes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodigoNome'
+        metodos:
+          type: array
+          items:
+            $ref: '#/components/schemas/CodigoNome'
+        fontes:
+          type: array
+          items:
+            $ref: '#/components/schemas/FonteDoMetadado'
+        indicadores:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoDeIndicador'
+      required:
+      - anos
+      - carga
+      - fontes
+      - indicadores
+      - metodos
+      - niveis
+      - situacoes
+      - unidades
     MetodoEnum:
       enum:
       - publicado
@@ -862,6 +983,72 @@ components:
       description: |-
         * `publicado` - Publicado pelo FBSP
         * `soma_ufs` - Calculado pelo projeto como soma das UFs
+    NoDeIndicador:
+      type: object
+      description: |-
+        Nó da árvore de indicadores: os campos de um item de /indicadores/, na mesma ordem, com
+        `subtipos` trazendo os objetos dos filhos em vez dos slugs (contrato, 4.10).
+      properties:
+        slug:
+          type: string
+          maxLength: 60
+          pattern: ^[-a-zA-Z0-9_]+$
+        nome:
+          type: string
+          maxLength: 120
+        descricao:
+          type: string
+        unidade_padrao:
+          $ref: '#/components/schemas/UnidadeEnum'
+        unidades:
+          type: array
+          items:
+            type: string
+          readOnly: true
+          description: Unidades com registros, na ordem vitimas, ocorrencias.
+        base_taxa:
+          nullable: true
+          oneOf:
+          - $ref: '#/components/schemas/BaseTaxaEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+          - $ref: '#/components/schemas/NullEnum'
+        fonte_taxa:
+          allOf:
+          - $ref: '#/components/schemas/FonteResumo'
+          nullable: true
+        indicador_pai:
+          type: string
+          readOnly: true
+        subtipos:
+          type: array
+          items:
+            $ref: '#/components/schemas/NoDeIndicador'
+          readOnly: true
+        possui_registros:
+          type: boolean
+          readOnly: true
+        anos:
+          type: array
+          items:
+            type: integer
+          readOnly: true
+          description: Anos com registros, crescentes.
+        recortes:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecorteResumo'
+          readOnly: true
+      required:
+      - anos
+      - fonte_taxa
+      - indicador_pai
+      - nome
+      - possui_registros
+      - recortes
+      - slug
+      - subtipos
+      - unidade_padrao
+      - unidades
     NullEnum:
       enum:
       - null

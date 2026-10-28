@@ -13,7 +13,7 @@ LISTAS = [
     "/api/v1/recortes/",
 ]
 DETALHES = ["/api/v1/regioes/NE/", "/api/v1/estados/BA/", "/api/v1/indicadores/mvi/"]
-RECURSOS = LISTAS + DETALHES
+RECURSOS = LISTAS + DETALHES + ["/api/v1/metadados/"]  # recursos sem CSV
 
 
 # Regras comuns (contrato, seções 2, 5.1, 6 e 7.1)
