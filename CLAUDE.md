@@ -206,7 +206,7 @@ projeto-integrador-ii/
 │   │   │   └── referencia.py          # fontes (slug, ordem fixa) e hierarquia de indicadores (slug, pai, unidade_padrao, base_taxa, fonte_taxa)
 │   │   ├── registros/                 # RegistroAnual
 │   │   │   ├── escolhas.py            # Situacao, Metodo, Unidade (TextChoices usados pelos modelos e pela importação)
-│   │   │   └── queries.py             # taxa, variação e participação (subconsultas), ranking com empates, comparação
+│   │   │   └── queries.py             # anotar_registros (taxa, variação, participação por subconsulta), ordenacao, ordem canônica  ✎ ranking, comparação
 │   │   ├── importacao/
 │   │   │   ├── models.py              # Carga
 │   │   │   ├── mapeamento.py          # especificação declarativa das tabelas (T01–T21) e contagem esperada
@@ -241,7 +241,7 @@ projeto-integrador-ii/
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
 │   ├── modelagem.md                   ✚ transcrição da seção do roteiro
 │   ├── api/openapi.yaml               # esquema gerado e versionado  ✎ diff verificado no CI
-│   └── adr/                           # 0001 a 0007 (0007: implementação do modelo e da importação)
+│   └── adr/                           # 0001 a 0008 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice)
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
 

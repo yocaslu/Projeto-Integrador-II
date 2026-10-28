@@ -155,7 +155,8 @@ O catálogo completo, com ids fixos, está na seção 4.5.
 - `base`: `base_taxa` do indicador; `null` quando o indicador não tem base (hoje, nenhum indicador com registros).
 - `origem`: `calculada` (valor ÷ população do IBGE × 100 000, quando a base é 100 mil habitantes
   e há população para o ano e a localidade) ou `publicada` (`taxa_publicada` arredondada). `null`
-  quando `valor` é `null`.
+  quando `valor` é `null`, ou seja, sempre que não há taxa: sem valor do registro ou sem
+  denominador (ADR 0008).
 - `fonte`: fonte do **denominador**, lida de `INDICADORES.fonte_taxa` (ADR 0005), a mesma para
   `origem` `calculada` e `publicada`: IBGE – Estimativas para habitantes, IBGE – Projeções para
   mulheres, Senatran para veículos, Banco Central para instituições. `null` quando `valor` é
