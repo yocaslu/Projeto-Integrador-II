@@ -178,27 +178,29 @@ Os 230 calculados são 46 combinações (indicador, recorte, unidade, ano) das t
 ### 4.1 Fluxo do comando
 
 ```
-importar_anuario [--dados DIR] [--relatorio DIR] [--somente-validar] [--estrito]
+importar_anuario [--dados DIR] [--relatorio DIR] [--manifesto ARQ] [--somente-validar] [--estrito]
 │
-├─ 1. verificar_hashes(DIR)                   → compara com dados/README.md; diverge → CommandError
-├─ 2. versao = sha256(concat(hashes))[:12]
-├─ 3. carga = Carga(versao, status="em_andamento")
+├─ 1. verificar_arquivos(DIR, ARQ)            → todo arquivo do manifesto (padrão: README.md acima de DIR,
+│                                               isto é, dados/README.md) existe com o mesmo SHA-256; senão → CommandError
+├─ 2. versao = sha256(concat(hashes, em ordem de nome))[:12]
+├─ 3. carga = Carga(versao, arquivos, status="em_andamento")   # não é criada com --somente-validar
 ├─ 4. with transaction.atomic():
 │     ├─ carregar_referencias()                 # fontes (primeiro, ordem fixa), regiões, UFs, indicadores (update_or_create)
-│     ├─ populacao = ibge.ler(DIR)              # {(localidade, ano): Decimal}; 66 linhas
-│     ├─ gravar_populacao(populacao)
-│     ├─ linhas = [l for t in TABELAS for l in fbsp.ler_tabela(wb, t)]
+│     ├─ populacoes = [ibge.ler(ods) ...]       # 33 localidades por ano; 66 linhas
+│     ├─ gravar_populacao(populacoes)
+│     ├─ lidas = [fbsp.ler_tabela(wb, t) for t in TABELAS]   # linhas das donas + valores publicados (variação, proporção, T01, T09)
 │     ├─ linhas += agregacao.agregar(linhas, regiao_da_uf)  # seção 4.8; somável pela unidade da chave; diverge → CommandError
 │     ├─ verificar_chaves_unicas(linhas)        # mesma chave vinda de duas tabelas donas → erro
-│     ├─ relatorio = validacao.gerar(linhas, populacao, conferencias=fbsp.ler_conferencias(wb))  # T01, T09, proporção da T21
-│     ├─ if --somente-validar: desfaz a transação (transaction.set_rollback(True))
-│     ├─ gravacao.upsert(linhas)
-│     └─ carga.concluir(total=len(linhas))
+│     ├─ conferir contagem: lidos e calculados = mapeamento.contagem_esperada()  # 1.750 + 230
+│     ├─ relatorio = validacao.gerar(linhas, lidas, populacoes, ...)
+│     ├─ if --somente-validar: desfaz a transação (transaction.set_rollback(True)) e não grava
+│     ├─ orfaos = gravacao.upsert(linhas, refs, ordem_recortes)   # recortes na ordem dos blocos
+│     └─ carga: status="concluida", concluida_em, total_registros
 ├─ 5. relatorio.salvar(--relatorio, versao)
 └─ 6. if --estrito and relatorio.tem_divergencias: CommandError (código ≠ 0)
 ```
 
-Qualquer exceção desfaz a transação inteira, e a carga anterior continua valendo.
+O fluxo está em `apps/importacao/processo.py` (`importar`), que recebe as tabelas como parâmetro para que os testes usem as planilhas reduzidas; o comando só trata opções e mensagens. Qualquer exceção desfaz a transação inteira, a carga fica com `status = falhou`, e a carga anterior continua valendo. Com `--estrito`, a carga já foi gravada quando o comando termina com erro: a opção serve para o CI ou um script notarem a divergência.
 
 ### 4.2 Especificação declarativa (`mapeamento.py`)
 
@@ -362,6 +364,8 @@ def obter_recorte(itens: tuple[tuple[str, str], ...]) -> Recorte | None:
 
 Dimensões permitidas: `corporacao` e `situacao_policial`. Perfis de vítimas (sexo, raça/cor, faixa etária) estão fora do escopo (ADR 0004).
 
+Os recortes são criados na ordem dos blocos em `mapeamento.py` (`gravacao.obter_recortes`), de modo que um banco limpo reproduz os mesmos `id`s (contrato, 4.4): 1 Polícia Civil, em serviço; 2 Polícia Militar, em serviço; 3 Polícia Civil, fora de serviço; 4 Polícia Militar, fora de serviço. O `rotulo` junta os valores na ordem da chave, só o primeiro com maiúscula.
+
 ### 4.7 IBGE
 
 - Aba `BRASIL_E_UFs` de cada `.ods`, lida com `pandas.read_excel(..., engine="odf", header=None, dtype=object)`.
@@ -471,6 +475,8 @@ Todas as comparações são feitas em **precisão total, sem arredondar nenhum l
 | Contagem por situação | `informado`, `inexistente`, `nao_disponivel` por tabela | informação |
 | Célula vazia | Ocorrência de vazio em área de dados | aviso |
 | Órfãos | Chaves da carga anterior ausentes na atual | aviso |
+| Variação ou proporção publicada como "-" ou "..." | Não há número a comparar. Só é apontada quando o sistema calcula um número onde a planilha não publicou nenhum (ex.: T15, roubo a instituição financeira que caiu a zero: −100% calculado, "..." publicado); "-" com variação calculada nula (base zero) passa sem apontamento | informação |
+| Marca de nota do IBGE | Ex.: `(1)` em PR e SC em 2025, com o texto da nota | informação |
 
 Colunas do CSV: `tabela, origem, indicador, localidade, recorte, unidade, ano, verificacao, esperado, obtido, diferenca, severidade`. `esperado`, `obtido` e `diferenca` em precisão total.
 
@@ -478,7 +484,7 @@ Colunas do CSV: `tabela, origem, indicador, localidade, recorte, unidade, ano, v
 
 ## 6. Testes
 
-- `tests/fixtures/`: planilha reduzida gerada a partir da real (T02, T03 com vítimas e ocorrências, T08, T09, T15 e T21 com Brasil + 3 UFs), mantendo células mescladas, `-`, `...`, linhas em branco e notas.
-- Unitários: `normalizar_celula`, `separar_marcas`, `resolver_localidade`, `resolver_colunas`, `obter_recorte`, leitura do IBGE, `agregacao.agregar` (`tests/importacao/test_agregacao.py`).
-- Integração: comando completo sobre a fixture; idempotência (duas execuções); rollback (célula inválida → nada gravado); relatório com divergência plantada.
+- `tests/fixtures/planilhas/`: planilhas reduzidas geradas por `tests/fixtures/gerar_planilhas.py` a partir das reais, com manifesto de hashes próprio. Do FBSP, só as abas T01, T02, T03, T08, T09, T15 e T21, mas com **todas as linhas**: a agregação regional exige todas as UFs de cada região, e o leitor confere 28 ou 33 localidades. Do IBGE, só a aba `BRASIL_E_UFs`. Com elas, a importação gera 1.134 lidos + 120 calculados = 1.254 registros e 66 populações.
+- Unitários: `normalizar_celula`, `normalizar_taxa`, `separar_marcas`, `resolver_localidade`, o leitor do FBSP sobre uma aba sintética (âncora, colunas órfãs e ignoradas, base da taxa, notas, células inválidas e vazias, contagens), leitura do IBGE, `agregacao.agregar`, relatório, referências e constraints do banco.
+- Integração (`tests/importacao/test_processo.py`, `test_comando.py`): importação completa sobre as fixtures; idempotência (duas execuções, mesmos `id`s); `--somente-validar` sem gravar nada; rollback (célula inválida → nada gravado, carga `falhou`); agregado publicado divergente → aborta; taxa divergente plantada → relatório e `--estrito`; hash divergente; órfãos; ids de fontes e recortes num banco limpo.
 - Contra a planilha real (`@pytest.mark.planilha_real`): toda âncora é encontrada na linha 5, toda coluna de taxa passa na conferência da base, nenhuma coluna órfã, 1.750 registros lidos + 230 regionais calculados (24 nulos) = 1.980, e 66 populações; nenhuma divergência entre agregados publicados e a soma das UFs; e nenhuma divergência acima de 1e-6 no relatório (taxas de vítimas e ocorrências, variação da taxa, T09 e proporção da T21 — conferido na planilha versionada).

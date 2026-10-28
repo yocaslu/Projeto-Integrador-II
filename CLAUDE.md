@@ -60,7 +60,7 @@ docker compose up -d --build db backend
 
 Notas:
 - `uv run pytest` já aplica `--cov` e `fail_under = 75` pelo `pyproject.toml`; não repita as opções.
-- `importar_anuario` lê `--dados` (padrão `DADOS_BRUTOS_DIR=/dados/brutos`) e grava o relatório em `--relatorio` (padrão `DADOS_RELATORIOS_DIR=/dados/relatorios`). `./dados` é montado em `/dados` no container. As opções `--somente-validar` e `--estrito` estão especificadas em `docs/importacao.md` e ainda serão implementadas.
+- `importar_anuario` lê `--dados` (padrão `DADOS_BRUTOS_DIR=/dados/brutos`) e grava o relatório em `--relatorio` (padrão `DADOS_RELATORIOS_DIR=/dados/relatorios`). `./dados` é montado em `/dados` no container. Os hashes são conferidos contra `dados/README.md` (outro arquivo com `--manifesto`). `--somente-validar` lê, confere e gera o relatório sem gravar nada; `--estrito` termina com erro se o relatório tiver divergência. Antes de ajustar `mapeamento.py` para uma nova edição da planilha, rode `inspecionar_planilha [ABA ...]`.
 - Sem Docker, os mesmos comandos funcionam dentro de `backend/` com `uv run ...`, apontando `POSTGRES_HOST=localhost`.
 
 Sequência completa em ambiente limpo: subir → `migrate` → `importar_anuario` → `pytest`.
@@ -96,7 +96,7 @@ MVI (indicador-síntese), letalidade policial (mortes decorrentes de intervenç�
 - `unidade` (`vitimas` | `ocorrencias`) fica no **registro**; `INDICADORES` guarda `unidade_padrao` e `base_taxa` (100 mil habitantes; 100 mil mulheres; 100 mil veículos; 100 instituições). A base vale para as duas unidades.
 - Taxa por 100 mil habitantes é **calculada** a partir de `POPULACAO` (IBGE 2024 e 2025, as mesmas estimativas usadas pelo FBSP); nos demais casos (outras bases e série MVI 2012–2023) usa-se `taxa_publicada`. A variação percentual é calculada na consulta e nunca armazenada.
 
-Ajustes ao modelo do roteiro, já decididos (registrar em ADR ao implementar):
+Ajustes ao modelo do roteiro, implementados nas migrações iniciais (ADR 0007, que também registra as decisões da implementação):
 1. `INDICADORES.slug` (único) — exigido pelo contrato da API.
 2. `ESTADOS.codigo_ibge` e `REGIOES.codigo_ibge` — chave estável para a malha do mapa e para cruzamentos futuros. `CharField(max_length=2)` com os códigos reais do IBGE: UFs `11`…`53` (únicos), regiões `1`…`5`, Brasil `1`; em `REGIOES`, unicidade por (`tipo`, `codigo_ibge`). Siglas em `REGIOES`: `BR`, `N`, `NE`, `SE`, `S`, `CO`.
 3. `RECORTES.chave` (única, pares ordenados `dimensao=valor;...`) — torna a criação de recortes idempotente.
@@ -192,41 +192,43 @@ projeto-integrador-ii/
 ├── CLAUDE.md
 ├── .github/
 │   ├── workflows/
-│   │   ├── ci.yml                     ✎ incluir makemigrations --check, diff do docs/api/openapi.yaml e `pytest -m desempenho --no-cov`
+│   │   ├── ci.yml                     ✎ incluir diff do docs/api/openapi.yaml e `pytest -m desempenho --no-cov`
 │   │   └── deploy.yml
 │   └── pull_request_template.md       ✎ checklist da Definição de pronto
 ├── backend/
 │   ├── pyproject.toml · Dockerfile · manage.py · .python-version
-│   ├── uv.lock                        ✚ gerar com `uv lock` (o build e o CI dependem dele)
+│   ├── uv.lock                        # versionado; o build e o CI usam --locked
 │   ├── config/settings/               # base.py, dev.py, test.py, prod.py
 │   ├── apps/
 │   │   ├── localidades/               # Regiao, Estado, Populacao
-│   │   │   └── referencia.py          ✚ 5 regiões + Brasil + 27 UFs (sigla, nome, código IBGE, aliases)
+│   │   │   └── referencia.py          # 5 regiões + Brasil + 27 UFs (sigla, nome, código IBGE, aliases)
 │   │   ├── catalogo/                  # Fonte, Indicador, Recorte, RecorteItem
-│   │   │   └── referencia.py          ✚ fontes (slug, ordem fixa) e hierarquia de indicadores (slug, pai, unidade_padrao, base_taxa, fonte_taxa)
+│   │   │   └── referencia.py          # fontes (slug, ordem fixa) e hierarquia de indicadores (slug, pai, unidade_padrao, base_taxa, fonte_taxa)
 │   │   ├── registros/                 # RegistroAnual
+│   │   │   ├── escolhas.py            # Situacao, Metodo, Unidade (TextChoices usados pelos modelos e pela importação)
 │   │   │   └── queries.py             # taxa, variação e participação (subconsultas), ranking com empates, comparação
 │   │   ├── importacao/
-│   │   │   ├── models.py              ✚ Carga
-│   │   │   ├── mapeamento.py          ✚ especificação declarativa das tabelas T02–T21
+│   │   │   ├── models.py              # Carga
+│   │   │   ├── mapeamento.py          # especificação declarativa das tabelas (T01–T21) e contagem esperada
+│   │   │   ├── processo.py            # fluxo completo da importação (o comando só trata opções)
 │   │   │   ├── leitores/              # fbsp.py (openpyxl), ibge.py (pandas + odfpy)
-│   │   │   ├── normalizacao.py        # “-”, “...”, Decimal  ✎ notas de rodapé e localidades
+│   │   │   ├── normalizacao.py        # “-”, “...”, Decimal, taxa a 12 casas, localidades
 │   │   │   ├── linhas.py              # Chave (com `unidade`), Linha, Localidade (nível + sigla), Metodo, Unidade
 │   │   │   ├── agregacao.py           # regiões = soma das UFs; confere Brasil e T02; somável pela unidade da chave
-│   │   │   ├── gravacao.py            ✚ upsert idempotente
-│   │   │   ├── validacao.py           # relatório de divergências (sem arredondar, tolerância 1e-6)  ✎ variação da taxa, T09/T21
+│   │   │   ├── gravacao.py            # referências, população e upsert idempotente; órfãos
+│   │   │   ├── validacao.py           # relatório (sem arredondar, tolerância 1e-6): taxa, variação da taxa, T01, T09/T21
 │   │   │   └── management/commands/
 │   │   │       ├── importar_anuario.py
-│   │   │       └── inspecionar_planilha.py ✚ lista abas, âncoras e caminhos de cabeçalho
+│   │   │       └── inspecionar_planilha.py # lista abas, âncoras e caminhos de cabeçalho
 │   │   └── api/
 │   │       ├── v1/                    # urls, views, serializers, filtros
 │   │       │   ├── parametros.py      ✚ validação comum: desconhecido/repetido/vazio → 400, listas, nível × uf × região
 │   │       │   └── campos.py          ✚ campos decimais (inteiro, 2 casas, precisão total) e objetos localidade/taxa/variação
 │   │       └── erros.py · renderizadores.py · paginacao.py · cache.py
 │   └── tests/                         # espelha apps/: importacao/, registros/, api/, desempenho/ (RNF02, ADR 0005)
-│       ├── localidades/ · catalogo/   ✚
+│       ├── localidades/ · catalogo/
 │       ├── conftest.py
-│       └── fixtures/                  # planilhas reduzidas (recortes da real, poucas UFs)
+│       └── fixtures/                  # planilhas reduzidas (gerar_planilhas.py; abas selecionadas, todas as linhas)
 ├── frontend/                          ⏸ fase seguinte
 ├── e2e/                               ⏸ fase seguinte
 ├── dados/
@@ -239,7 +241,7 @@ projeto-integrador-ii/
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
 │   ├── modelagem.md                   ✚ transcrição da seção do roteiro
 │   ├── api/openapi.yaml               ✚ esquema gerado e versionado (diff verificado no CI)
-│   └── adr/                           # 0001-monorepo.md, 0002-totais-regionais.md  ✚ ajustes do modelo, ...
+│   └── adr/                           # 0001 a 0007 (0007: implementação do modelo e da importação)
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
 
