@@ -50,7 +50,11 @@ quote-style = "double"
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "config.settings.test"
 testpaths = ["tests"]
-addopts = "--cov=apps --cov=config --cov-report=term-missing --cov-report=xml"
+addopts = "--cov=apps --cov=config --cov-report=term-missing --cov-report=xml -m 'not desempenho and not planilha_real'"
+markers = [
+    "planilha_real: importa a planilha completa de dados/brutos/ (uv run pytest -m planilha_real --no-cov)",
+    "desempenho: teste de tempo de resposta do RNF02 (uv run pytest -m desempenho --no-cov; ADR 0005)",
+]
 
 [tool.coverage.run]
 omit = ["*/migrations/*", "config/wsgi.py", "config/settings/dev.py", "config/settings/prod.py"]
