@@ -93,18 +93,15 @@ def test_arvore_de_indicadores(client, dados):
         "furto-veiculo",
         "furto-celular",
     ]
-    assert list(arvore[0]) == [
-        "slug",
-        "nome",
-        "unidade_padrao",
-        "unidades",
-        "base_taxa",
-        "fonte_taxa",
-        "possui_registros",
-        "anos",
-        "recortes",
-        "subtipos",
-    ]
+    # Os campos de um item de /indicadores/, na mesma ordem; subtipos com os objetos dos filhos.
+    item = client.get("/api/v1/indicadores/mvi/").json()
+    assert list(arvore[0]) == list(item)
+    assert {k: v for k, v in arvore[0].items() if k != "subtipos"} == {
+        k: v for k, v in item.items() if k != "subtipos"
+    }
+    assert [no["slug"] for no in arvore[0]["subtipos"]] == item["subtipos"]
+    assert (arvore[0]["indicador_pai"], homicidio["indicador_pai"]) == (None, "mvi")
+    assert homicidio["descricao"] == "Homicídio com intenção de matar, incluindo os feminicídios."
 
 
 def test_unidades_anos_e_recortes_de_cada_indicador(client, dados):

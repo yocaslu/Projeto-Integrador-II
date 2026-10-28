@@ -293,23 +293,10 @@ class FonteDoMetadadoSerializer(serializers.Serializer):
 
 
 class NoDeIndicadorSerializer(IndicadorSerializer):
-    """Nó da árvore de indicadores: os campos do exemplo do contrato, com os filhos aninhados."""
+    """Nó da árvore de indicadores: os campos de um item de /indicadores/, na mesma ordem, com
+    `subtipos` trazendo os objetos dos filhos em vez dos slugs (contrato, 4.10)."""
 
     subtipos = serializers.SerializerMethodField()
-
-    class Meta(IndicadorSerializer.Meta):
-        fields = [
-            "slug",
-            "nome",
-            "unidade_padrao",
-            "unidades",
-            "base_taxa",
-            "fonte_taxa",
-            "possui_registros",
-            "anos",
-            "recortes",
-            "subtipos",
-        ]
 
     def get_subtipos(self, indicador: Indicador) -> list[dict]:
         filhos = self.context["filhos"].get(indicador.id, [])
