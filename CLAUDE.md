@@ -224,7 +224,7 @@ projeto-integrador-ii/
 │   │       ├── v1/                    # urls, views, serializers, filtros
 │   │       │   ├── parametros.py      # LeitorParametros: desconhecido/repetido/vazio → 400, listas, anos, nível × uf × região, ordenar
 │   │       │   └── campos.py          # campos decimais (inteiro, 2 casas, precisão guardada) e objetos localidade, taxa, variação, participação
-│   │       └── erros.py · negociacao.py · paginacao.py (paginar: 400 além da última página) · renderizadores.py · cache.py
+│   │       └── erros.py · negociacao.py · paginacao.py (paginar: 400 além da última página) · renderizadores.py (CSV: colunas da 5.3, achatamento, streaming, limite) · cache.py
 │   └── tests/                         # espelha apps/: importacao/, registros/, api/, desempenho/ (RNF02, ADR 0005)
 │       ├── localidades/ · catalogo/
 │       ├── conftest.py

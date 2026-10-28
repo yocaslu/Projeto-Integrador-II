@@ -31,8 +31,11 @@ paths:
         schema:
           type: string
           enum:
+          - csv
           - json
-        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+        description: '`json` (padrão) ou `csv`; tem precedência sobre o cabeçalho
+          `Accept`. O CSV traz o recorte completo, sem paginação (`pagina`/`tamanho`
+          → 400), até 50 000 linhas, com as colunas da seção 5.3 do contrato.'
       - in: query
         name: indicador
         schema:
@@ -67,6 +70,9 @@ paths:
         '200':
           content:
             application/json:
+              schema:
+                $ref: '#/components/schemas/Comparacao'
+            text/csv:
               schema:
                 $ref: '#/components/schemas/Comparacao'
           description: ''
@@ -268,8 +274,11 @@ paths:
         schema:
           type: string
           enum:
+          - csv
           - json
-        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+        description: '`json` (padrão) ou `csv`; tem precedência sobre o cabeçalho
+          `Accept`. O CSV traz o recorte completo, sem paginação (`pagina`/`tamanho`
+          → 400), até 50 000 linhas, com as colunas da seção 5.3 do contrato.'
       - in: query
         name: nivel
         schema:
@@ -315,6 +324,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaginaDePopulacao'
+            text/csv:
+              schema:
+                $ref: '#/components/schemas/PaginaDePopulacao'
           description: ''
   /api/v1/ranking/:
     get:
@@ -344,8 +356,11 @@ paths:
         schema:
           type: string
           enum:
+          - csv
           - json
-        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+        description: '`json` (padrão) ou `csv`; tem precedência sobre o cabeçalho
+          `Accept`. O CSV traz o recorte completo, sem paginação (`pagina`/`tamanho`
+          → 400), até 50 000 linhas, com as colunas da seção 5.3 do contrato.'
       - in: query
         name: indicador
         schema:
@@ -374,6 +389,9 @@ paths:
         '200':
           content:
             application/json:
+              schema:
+                $ref: '#/components/schemas/Ranking'
+            text/csv:
               schema:
                 $ref: '#/components/schemas/Ranking'
           description: ''
@@ -497,8 +515,11 @@ paths:
         schema:
           type: string
           enum:
+          - csv
           - json
-        description: Formato da resposta. Este recurso só tem JSON; `csv` → 406.
+        description: '`json` (padrão) ou `csv`; tem precedência sobre o cabeçalho
+          `Accept`. O CSV traz o recorte completo, sem paginação (`pagina`/`tamanho`
+          → 400), até 50 000 linhas, com as colunas da seção 5.3 do contrato.'
       - in: query
         name: incluir_subtipos
         schema:
@@ -571,6 +592,9 @@ paths:
         '200':
           content:
             application/json:
+              schema:
+                $ref: '#/components/schemas/PaginaDeRegistros'
+            text/csv:
               schema:
                 $ref: '#/components/schemas/PaginaDeRegistros'
           description: ''
