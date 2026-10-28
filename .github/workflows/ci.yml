@@ -81,6 +81,15 @@ jobs:
         run: uv run pytest
       - name: Importação da planilha real (1.980 registros, sem divergências)
         run: uv run pytest -m planilha_real --no-cov
+      - name: Esquema OpenAPI versionado em dia
+        run: |
+          uv run python manage.py spectacular --validate --fail-on-warn --file "$RUNNER_TEMP/openapi.yaml"
+          if ! diff -u ../docs/api/openapi.yaml "$RUNNER_TEMP/openapi.yaml"; then
+            echo "::error file=docs/api/openapi.yaml::Esquema desatualizado. Regenere com: manage.py spectacular --validate --fail-on-warn > docs/api/openapi.yaml"
+            exit 1
+          fi
+      - name: Desempenho (RNF02, p95 < 500 ms; ADR 0005)
+        run: uv run pytest -m desempenho --no-cov
 
   frontend:
     name: Frontend (Jest e build)

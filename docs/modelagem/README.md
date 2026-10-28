@@ -1,8 +1,8 @@
 # Modelagem de dados
 
 Nove entidades: REGIOES, ESTADOS, POPULACAO, FONTES, INDICADORES, RECORTES, RECORTE_ITENS,
-REGISTROS_ANUAIS (tabela de fatos) e CARGAS (sem relacionamento; versão da carga). A descrição completa está na seção "Modelagem de dados" do
-roteiro.
+REGISTROS_ANUAIS (tabela de fatos) e CARGAS (sem relacionamento; versão da carga). A descrição
+completa, com atributos, restrições e decisões, está em [`../modelagem.md`](../modelagem.md).
 
 Diagrama entidade-relacionamento (Figura 3 do roteiro):
 
@@ -19,4 +19,4 @@ O diagrama já inclui os ajustes 1 a 13 ao modelo do roteiro listados no CLAUDE.
 0005): `slug`, `ordem`, `unidade_padrao` e `fonte_taxa` em INDICADORES; `codigo_ibge` em REGIOES e
 ESTADOS; `chave` em RECORTES; `slug` em FONTES; `unidade`, `origem` e `metodo` em REGISTROS_ANUAIS,
 com `unidade` na chave única; CHECK e unicidade em POPULACAO; e a entidade CARGAS. Onde o roteiro
-diverge do diagrama, vale o diagrama.
+diverge do diagrama ou de `docs/modelagem.md`, valem estes.
