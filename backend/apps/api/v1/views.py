@@ -6,9 +6,12 @@ carga concluída (503, seção 7.1) e só então os parâmetros (400, seção 2)
 """
 
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
+from functools import reduce
+from operator import or_
 
-from django.db.models import Prefetch
+from django.db.models import F, Max, Min, Prefetch, Q
 from django.http import Http404
 from django.utils.cache import patch_vary_headers
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -17,12 +20,21 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.api.erros import SemCargaConcluida
+from apps.api.paginacao import paginar
 from apps.api.v1 import serializers as s
-from apps.api.v1.parametros import LeitorParametros
+from apps.api.v1.parametros import Anos, LeitorParametros, Localidades
 from apps.catalogo.models import Fonte, Indicador, Recorte, RecorteItem
 from apps.importacao.models import Carga
-from apps.localidades.models import Estado, Regiao
+from apps.localidades.models import Estado, Populacao, Regiao
+from apps.registros.escolhas import Situacao, Unidade
 from apps.registros.models import RegistroAnual
+from apps.registros.queries import (
+    CAMPOS_DE_ORDENACAO,
+    CAMPOS_DE_ORDENACAO_DA_POPULACAO,
+    ORDEM_PADRAO_DA_POPULACAO,
+    anotar_registros,
+    ordenacao,
+)
 
 FORMATO_JSON = OpenApiParameter(
     "formato",
@@ -268,3 +280,308 @@ class ListaRecortes(RecursoV1):
             recortes = recortes.filter(id__in=ids)
         contexto = {"indicadores_do_recorte": indicadores_do_recorte}
         return Response(s.RecorteSerializer(recortes, many=True, context=contexto).data)
+
+
+# Registros e população (contrato, seções 4.6 e 4.7)
+
+PARAMETROS_DE_LOCALIDADE = [
+    OpenApiParameter(
+        "nivel",
+        str,
+        description="Lista de `pais`, `regiao`, `uf`. Sem `nivel`, `uf` nem `regiao`: só as "
+        "UFs. Misturar níveis só por lista explícita (ex.: `pais,regiao,uf`), e então sem "
+        "`uf`/`regiao`.",
+    ),
+    OpenApiParameter(
+        "uf", str, description="Lista de siglas de UF (ex.: `SP,RJ`); implica `nivel=uf`."
+    ),
+    OpenApiParameter(
+        "regiao",
+        str,
+        description="Lista de siglas de região (N, NE, SE, S, CO); exige `nivel`: com `nivel=uf`, "
+        "as UFs da região; com `nivel=regiao`, o agregado. `BR` → 400.",
+    ),
+]
+PARAMETROS_DE_ANOS = [
+    OpenApiParameter("ano", str, description="Lista de anos (ex.: `2024,2025`)."),
+    OpenApiParameter("ano_min", int, description="Primeiro ano do intervalo fechado."),
+    OpenApiParameter("ano_max", int, description="Último ano do intervalo fechado."),
+]
+PARAMETROS_DE_PAGINA = [
+    OpenApiParameter("pagina", int, description="Página, a partir de 1. Além da última → 400."),
+    OpenApiParameter("tamanho", int, description="Itens por página: padrão 100, máximo 1000."),
+]
+
+
+def _siglas() -> tuple[set[str], set[str]]:
+    """Siglas válidas de UF e de região (sem o Brasil)."""
+    ufs = set(Estado.objects.values_list("sigla", flat=True))
+    regioes = set(Regiao.objects.filter(tipo=Regiao.Tipo.REGIAO).values_list("sigla", flat=True))
+    return ufs, regioes
+
+
+def _intervalo_de_anos() -> tuple[int, int]:
+    """Anos com registros, lidos do banco (contrato, seção 2, regra 8)."""
+    limites = RegistroAnual.objects.aggregate(minimo=Min("ano"), maximo=Max("ano"))
+    return limites["minimo"], limites["maximo"]
+
+
+def _filtro_de_localidade(locais: Localidades) -> Q:
+    """Filtro da regra de nível (contrato, 4.7.2); `locais` já validado pelo LeitorParametros."""
+    por_nivel = {
+        "pais": Q(regiao__tipo=Regiao.Tipo.PAIS),
+        "regiao": Q(regiao__tipo=Regiao.Tipo.REGIAO),
+        "uf": Q(estado__isnull=False),
+    }
+    filtro = reduce(or_, (por_nivel[nivel] for nivel in locais.niveis))
+    if locais.ufs:
+        filtro &= Q(estado__sigla__in=locais.ufs)
+    if locais.regioes:
+        if locais.niveis == ("uf",):
+            filtro &= Q(estado__regiao__sigla__in=locais.regioes)
+        else:
+            filtro &= Q(regiao__sigla__in=locais.regioes)
+    return filtro
+
+
+def _filtro_de_anos(anos: Anos) -> Q:
+    filtro = Q()
+    if anos.ano:
+        filtro &= Q(ano__in=anos.ano)
+    if anos.ano_min is not None:
+        filtro &= Q(ano__gte=anos.ano_min)
+    if anos.ano_max is not None:
+        filtro &= Q(ano__lte=anos.ano_max)
+    return filtro
+
+
+def _descendentes(slugs: Iterable[str], filhos: dict[str, list[str]]) -> list[str]:
+    """Os indicadores pedidos e todos os seus descendentes, em qualquer profundidade."""
+    resultado: list[str] = []
+    pendentes = list(slugs)
+    while pendentes:
+        slug = pendentes.pop(0)
+        if slug not in resultado:
+            resultado.append(slug)
+            pendentes.extend(filhos.get(slug, []))
+    return resultado
+
+
+UNIDADE_PADRAO, UNIDADE_TODAS = "padrao", "todas"
+RECORTE_TOTAL, RECORTE_TODOS = "total", "todos"
+
+
+class ListaRegistros(RecursoV1):
+    parametros_permitidos = (
+        "nivel",
+        "uf",
+        "regiao",
+        "indicador",
+        "incluir_subtipos",
+        "ano",
+        "ano_min",
+        "ano_max",
+        "unidade",
+        "recorte",
+        "situacao",
+        "ordenar",
+    )
+    paginado = True
+
+    @extend_schema(
+        operation_id="api_v1_registros_lista",
+        summary="Registros",
+        description="Tabela de fatos com valor, taxa, variação, participação, situação do dado, "
+        "método e fonte (contrato, 4.7). Por padrão, só totais (`recorte=total`), na unidade "
+        "padrão de cada indicador (`unidade=padrao`) e só as UFs: vítimas e ocorrências, totais e "
+        "recortes, Brasil, regiões e UFs nunca se misturam por omissão.",
+        parameters=[
+            *PARAMETROS_DE_LOCALIDADE,
+            OpenApiParameter(
+                "indicador",
+                str,
+                description="Lista de slugs. Agrupador (`furto`) exige `incluir_subtipos=true`.",
+            ),
+            OpenApiParameter(
+                "incluir_subtipos",
+                bool,
+                description="`true` inclui todos os descendentes dos indicadores; exige "
+                "`indicador`.",
+            ),
+            *PARAMETROS_DE_ANOS,
+            OpenApiParameter(
+                "unidade",
+                str,
+                description="`padrao` (padrão): a unidade padrão de cada indicador; `todas`; ou "
+                "lista de `vitimas`, `ocorrencias`.",
+            ),
+            OpenApiParameter(
+                "recorte",
+                str,
+                description="`total` (padrão): só registros sem recorte; `todos`; ou lista de ids "
+                "de /recortes/ (só esses recortes).",
+            ),
+            OpenApiParameter(
+                "situacao",
+                str,
+                description="Lista de `informado`, `inexistente`, `nao_disponivel`.",
+            ),
+            OpenApiParameter(
+                "ordenar",
+                str,
+                description="Lista de campos; `-` inverte. Campos: "
+                + ", ".join(CAMPOS_DE_ORDENACAO)
+                + ". Depois vem a ordem padrão (indicador, localidade, recorte, unidade, ano) e "
+                "`id`; nulos sempre ao final.",
+            ),
+            *PARAMETROS_DE_PAGINA,
+            FORMATO_JSON,
+        ],
+        responses=s.PaginaDeRegistrosSerializer,
+    )
+    def get(self, request, version):
+        p = self.parametros
+        ufs, regioes = _siglas()
+        locais = p.localidades(ufs, regioes)
+
+        indicadores = list(
+            Indicador.objects.order_by("ordem").values_list("slug", "indicador_pai__slug")
+        )
+        filhos: dict[str, list[str]] = defaultdict(list)
+        for slug, pai in indicadores:
+            if pai:
+                filhos[pai].append(slug)
+        slugs = p.lista("indicador", {slug for slug, _ in indicadores})
+        subtipos = p.booleano("incluir_subtipos")
+        anos = p.anos(_intervalo_de_anos())
+        unidades = p.lista("unidade", {UNIDADE_PADRAO, UNIDADE_TODAS, *Unidade.values})
+        ids_de_recorte = {str(i) for i in Recorte.objects.values_list("id", flat=True)}
+        recortes = p.lista("recorte", {RECORTE_TOTAL, RECORTE_TODOS, *ids_de_recorte})
+        situacoes = p.lista("situacao", set(Situacao.values))
+        ordem = p.ordenacao(set(CAMPOS_DE_ORDENACAO))
+        paginacao = p.paginacao()
+
+        if subtipos and not p.informado("indicador"):
+            p.erro("incluir_subtipos", "incluir_subtipos=true exige o parâmetro indicador.")
+        if unidades and len(unidades) > 1 and {UNIDADE_PADRAO, UNIDADE_TODAS} & set(unidades):
+            p.erro("unidade", "padrao e todas não se misturam com outras unidades.")
+        if recortes and len(recortes) > 1 and {RECORTE_TOTAL, RECORTE_TODOS} & set(recortes):
+            p.erro("recorte", "total e todos não se misturam com ids de recorte.")
+
+        efetivos = None
+        if slugs:
+            unidades_com_registros: dict[str, set[str]] = defaultdict(set)
+            for slug, unidade in RegistroAnual.objects.values_list(
+                "indicador__slug", "unidade"
+            ).distinct():
+                unidades_com_registros[slug].add(unidade)
+            if subtipos:
+                efetivos = _descendentes(slugs, filhos)
+            else:
+                efetivos = list(slugs)
+                for slug in slugs:
+                    if slug in filhos and not unidades_com_registros[slug]:
+                        p.erro(
+                            "indicador",
+                            f"O indicador {slug} não tem registros próprios; "
+                            "use incluir_subtipos=true.",
+                        )
+            pedidas = set(unidades or ()) - {UNIDADE_PADRAO, UNIDADE_TODAS}
+            sem_registros = not any(unidades_com_registros[slug] & pedidas for slug in efetivos)
+            if pedidas and p.valido("unidade") and p.valido("indicador") and sem_registros:
+                lista = ", ".join(sorted(pedidas))
+                if len(efetivos) == 1:
+                    mensagem = f"O indicador {efetivos[0]} não tem registros em {lista}."
+                else:
+                    mensagem = f"Os indicadores {', '.join(efetivos)} não têm registros em {lista}."
+                p.erro("unidade", mensagem)
+        p.validar()
+
+        filtro = _filtro_de_localidade(locais) & _filtro_de_anos(anos)
+        if efetivos:
+            filtro &= Q(indicador__slug__in=efetivos)
+        if not unidades or unidades == (UNIDADE_PADRAO,):
+            filtro &= Q(unidade=F("indicador__unidade_padrao"))
+        elif unidades != (UNIDADE_TODAS,):
+            filtro &= Q(unidade__in=unidades)
+        if not recortes or recortes == (RECORTE_TOTAL,):
+            filtro &= Q(recorte__isnull=True)
+        elif recortes != (RECORTE_TODOS,):
+            filtro &= Q(recorte_id__in=[int(i) for i in recortes])
+        if situacoes:
+            filtro &= Q(situacao__in=situacoes)
+
+        consulta = RegistroAnual.objects.filter(filtro)
+        total = consulta.count()
+        anotada = _registros_para_serializar(anotar_registros(consulta)).order_by(*ordenacao(ordem))
+        itens, envelope = paginar(request, anotada, total, paginacao)
+        envelope["results"] = s.RegistroSerializer(itens, many=True).data
+        return Response(envelope)
+
+
+def _registros_para_serializar(consulta):
+    """Relações do registro serializado numa consulta só, mais os itens dos recortes."""
+    return consulta.select_related(
+        "estado", "regiao", "indicador", "indicador__fonte_taxa", "recorte", "fonte"
+    ).prefetch_related(
+        Prefetch("recorte__itens", queryset=RecorteItem.objects.order_by("dimensao"))
+    )
+
+
+class DetalheRegistro(RecursoV1):
+    @extend_schema(
+        operation_id="api_v1_registros_detalhe",
+        summary="Um registro",
+        description="O mesmo objeto de um item de /registros/; id inexistente → 404.",
+        parameters=[FORMATO_JSON],
+        responses=s.RegistroSerializer,
+    )
+    def get(self, request, version, id):
+        self.parametros.validar()
+        consulta = anotar_registros(RegistroAnual.objects.filter(pk=id))
+        registro = _registros_para_serializar(consulta).first()
+        if registro is None:
+            raise Http404(f"Registro não encontrado: {id}.")
+        return Response(s.RegistroSerializer(registro).data)
+
+
+class ListaPopulacao(RecursoV1):
+    parametros_permitidos = ("nivel", "uf", "regiao", "ano", "ano_min", "ano_max", "ordenar")
+    paginado = True
+
+    @extend_schema(
+        operation_id="api_v1_populacao_lista",
+        summary="População",
+        description="Estimativas do IBGE usadas no cálculo das taxas (contrato, 4.6). Mesma regra "
+        "de nível de /registros/: sem `nivel`, só as UFs.",
+        parameters=[
+            *PARAMETROS_DE_LOCALIDADE,
+            *PARAMETROS_DE_ANOS,
+            OpenApiParameter(
+                "ordenar",
+                str,
+                description="Lista de `ano`, `localidade`, `valor`; `-` inverte. Ordem padrão: "
+                "localidade (canônica), ano; depois `id`.",
+            ),
+            *PARAMETROS_DE_PAGINA,
+            FORMATO_JSON,
+        ],
+        responses=s.PaginaDePopulacaoSerializer,
+    )
+    def get(self, request, version):
+        p = self.parametros
+        ufs, regioes = _siglas()
+        locais = p.localidades(ufs, regioes)
+        anos = p.anos(_intervalo_de_anos())
+        ordem = p.ordenacao(set(CAMPOS_DE_ORDENACAO_DA_POPULACAO))
+        paginacao = p.paginacao()
+        p.validar()
+
+        consulta = Populacao.objects.filter(_filtro_de_localidade(locais) & _filtro_de_anos(anos))
+        total = consulta.count()
+        ordenada = consulta.select_related("estado", "regiao", "fonte").order_by(
+            *ordenacao(ordem, CAMPOS_DE_ORDENACAO_DA_POPULACAO, ORDEM_PADRAO_DA_POPULACAO)
+        )
+        itens, envelope = paginar(request, ordenada, total, paginacao)
+        envelope["results"] = s.PopulacaoSerializer(itens, many=True).data
+        return Response(envelope)

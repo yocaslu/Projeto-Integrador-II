@@ -103,8 +103,6 @@ REST_FRAMEWORK = {
     # Só vale fora de uma requisição (ex.: `manage.py spectacular`); toda rota traz a versão.
     "DEFAULT_VERSION": "v1",
     "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
-    "DEFAULT_FILTER_BACKENDS": ["django_filters.rest_framework.DjangoFilterBackend"],
-    "DEFAULT_PAGINATION_CLASS": "apps.api.paginacao.PaginacaoPorPagina",
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "apps.api.erros.manipulador_problem_details",
     "COERCE_DECIMAL_TO_STRING": True,
@@ -122,4 +120,6 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "LICENSE": {"name": "AGPL-3.0", "url": "https://www.gnu.org/licenses/agpl-3.0.html"},
     "SERVE_INCLUDE_SCHEMA": False,
+    # A mesma escolha aparece no indicador (unidade_padrao) e no registro (unidade).
+    "ENUM_NAME_OVERRIDES": {"UnidadeEnum": "apps.registros.escolhas.Unidade"},
 }

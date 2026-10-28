@@ -18,7 +18,10 @@ urlpatterns = [
     path("indicadores/<slug:slug>/", views.DetalheIndicador.as_view(), name="indicador"),
     path("recortes/", views.ListaRecortes.as_view(), name="recortes"),
     path("fontes/", views.ListaFontes.as_view(), name="fontes"),
-    # A implementar: populacao, registros, ranking, comparacao e metadados.
+    path("populacao/", views.ListaPopulacao.as_view(), name="populacao"),
+    path("registros/", views.ListaRegistros.as_view(), name="registros"),
+    path("registros/<int:id>/", views.DetalheRegistro.as_view(), name="registro"),
+    # A implementar: ranking, comparacao e metadados.
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="docs"),
     path("redoc/", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),

@@ -108,3 +108,84 @@ class CampoPrecisaoGuardada(_CampoDecimalTexto):
 
     def formatar(self, valor):
         return formatar_precisao_guardada(valor)
+
+
+# Objetos compartilhados (contrato, seção 3). Recebem o registro inteiro (source="*"), já anotado
+# por apps/registros/queries.py:anotar_registros; nenhum campo do contrato é omitido.
+
+
+class FonteResumoSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    nome = serializers.CharField()
+
+
+def nivel_da_localidade(objeto) -> str:
+    """`uf`, `regiao` ou `pais`, para qualquer modelo com `estado` e `regiao`."""
+    if objeto.estado_id is not None:
+        return "uf"
+    return objeto.regiao.tipo
+
+
+class LocalidadeSerializer(serializers.Serializer):
+    """`{"nivel", "codigo", "codigo_ibge", "nome"}` de um registro ou de uma população."""
+
+    nivel = serializers.SerializerMethodField()
+    codigo = serializers.SerializerMethodField()
+    codigo_ibge = serializers.SerializerMethodField()
+    nome = serializers.SerializerMethodField()
+
+    def _local(self, objeto):
+        return objeto.estado if objeto.estado_id is not None else objeto.regiao
+
+    def get_nivel(self, objeto) -> str:
+        return nivel_da_localidade(objeto)
+
+    def get_codigo(self, objeto) -> str:
+        return self._local(objeto).sigla
+
+    def get_codigo_ibge(self, objeto) -> str:
+        return self._local(objeto).codigo_ibge
+
+    def get_nome(self, objeto) -> str:
+        return self._local(objeto).nome
+
+
+class TaxaSerializer(serializers.Serializer):
+    """Sempre presente; `origem` e `fonte` nulas quando não há taxa (ADR 0008)."""
+
+    valor = CampoDuasCasas(source="taxa", allow_null=True)
+    base = serializers.CharField(source="indicador.base_taxa", allow_null=True)
+    origem = serializers.CharField(source="taxa_origem", allow_null=True)
+    fonte = serializers.SerializerMethodField()
+
+    @extend_schema_field(FonteResumoSerializer(allow_null=True))
+    def get_fonte(self, registro) -> dict | None:
+        if registro.taxa is None or registro.indicador.fonte_taxa_id is None:
+            return None
+        return FonteResumoSerializer(registro.indicador.fonte_taxa).data
+
+
+class VariacaoSerializer(serializers.Serializer):
+    """Em relação ao ano anterior; `taxa_pct` é a variação da taxa, a mesma do FBSP."""
+
+    ano_referencia = serializers.IntegerField()
+    valor_pct = CampoDuasCasas(source="variacao_valor_pct", allow_null=True)
+    taxa_pct = CampoDuasCasas(source="variacao_taxa_pct", allow_null=True)
+
+
+class ReferenciaSerializer(serializers.Serializer):
+    tipo = serializers.ChoiceField(choices=["indicador_pai", "total_do_indicador"])
+    indicador = serializers.CharField()
+
+
+class ParticipacaoSerializer(serializers.Serializer):
+    """Parcela no indicador-pai ou no total do indicador; não some participações."""
+
+    referencia = serializers.SerializerMethodField()
+    valor_pct = CampoDuasCasas(source="participacao_valor_pct", allow_null=True)
+
+    @extend_schema_field(ReferenciaSerializer(allow_null=True))
+    def get_referencia(self, registro) -> dict | None:
+        if registro.participacao_tipo is None:
+            return None
+        return {"tipo": registro.participacao_tipo, "indicador": registro.participacao_indicador}
