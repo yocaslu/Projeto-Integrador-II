@@ -10,7 +10,9 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import NamedTuple
 
-from apps.importacao.normalizacao import Situacao
+from apps.registros.escolhas import Metodo, Situacao, Unidade
+
+__all__ = ["Chave", "Linha", "Localidade", "Metodo", "Nivel", "Recorte", "Unidade"]
 
 
 class Nivel(StrEnum):
@@ -19,25 +21,11 @@ class Nivel(StrEnum):
     PAIS = "pais"
 
 
-class Metodo(StrEnum):
-    """Como o valor de um registro foi obtido (RF11)."""
-
-    PUBLICADO = "publicado"  # lido de uma célula da planilha
-    SOMA_UFS = "soma_ufs"  # calculado pelo projeto como soma das UFs da região
-
-
 class Localidade(NamedTuple):
     """UF, região ou Brasil. A sigla sozinha é ambígua (SE = Sergipe ou Sudeste)."""
 
     nivel: Nivel
     sigla: str
-
-
-class Unidade(StrEnum):
-    """Unidade do valor do registro (ADR 0004). Um fato com duas vítimas conta 2 e 1."""
-
-    VITIMAS = "vitimas"
-    OCORRENCIAS = "ocorrencias"
 
 
 Recorte = tuple[tuple[str, str], ...]
@@ -62,6 +50,7 @@ class Linha:
     situacao: Situacao = Situacao.NAO_DISPONIVEL
     taxa_publicada: Decimal | None = None
     origem: str = ""
+    origem_taxa: str = ""  # célula da taxa publicada; só para o relatório
     observacao: str = ""
     marcas: set[str] = field(default_factory=set)
     metodo: Metodo = Metodo.PUBLICADO

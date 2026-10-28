@@ -20,9 +20,22 @@ PROBLEMAS = {
     405: ("metodo-nao-permitido", "Método não permitido"),
     406: ("formato-nao-suportado", "Formato não suportado"),
     429: ("limite-excedido", "Limite de requisições excedido"),
+    503: ("servico-indisponivel", "Serviço indisponível"),
 }
 
 CABECALHOS_PRESERVADOS = ("Allow", "Retry-After", "WWW-Authenticate")
+
+
+class SemCargaConcluida(exceptions.APIException):
+    """Nenhuma carga de dados concluída: 503 em todo recurso de dados (contrato, seção 7.1).
+
+    Sai com `Cache-Control: no-store`, para que intermediários não guardem a ausência de dados
+    pelas 24 h do cache normal.
+    """
+
+    status_code = 503
+    default_detail = "Nenhuma carga de dados foi concluída. Tente novamente mais tarde."
+    default_code = "sem_carga"
 
 
 def _lista_de_erros(dados) -> list[dict[str, str]]:
@@ -66,4 +79,6 @@ def manipulador_problem_details(exc, context):
     cabecalhos = {
         nome: resposta[nome] for nome in CABECALHOS_PRESERVADOS if resposta.has_header(nome)
     }
+    if isinstance(exc, SemCargaConcluida):
+        cabecalhos["Cache-Control"] = "no-store"
     return Response(corpo, status=status, headers=cabecalhos, content_type=TIPO_CONTEUDO)
