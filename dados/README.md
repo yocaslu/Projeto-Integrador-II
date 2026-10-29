@@ -19,6 +19,17 @@ crases, o hash na última coluna.
 
 Pendente: registrar a URL de download e a data de acesso de cada arquivo.
 
+### Edições anteriores (ainda não importadas)
+
+Planilhas de edições anteriores do Anuário, guardadas para estender as séries históricas. **Ficam
+fora do manifesto de propósito**: hoje o `importar_anuario` aceita uma única planilha `.xlsx`, e
+estas edições têm outra numeração de tabelas, que o `mapeamento.py` ainda não cobre. Os hashes
+ficam nesta lista, e não na tabela, para que o importador não os leia. Ao incorporar uma edição à
+importação, a linha dela passa para a tabela acima no mesmo commit da mudança do importador.
+
+- `anuario-2025.xlsx`: planilha do 19º Anuário Brasileiro de Segurança Pública (FBSP, 2025), com dados de 2023 e 2024 e a série de MVI de 2012 a 2024. Origem: <https://forumseguranca.org.br/wp-content/uploads/2025/09/anuario-2025.xlsx>, acesso em 29/10/2026. SHA-256: `23f187480418d15071272e859e1cc3ebcffc515816353aee91906f8e86660f04`.
+- `anuario-2024.xlsx`: planilha do 18º Anuário Brasileiro de Segurança Pública (FBSP, 2024), publicada no repositório do FBSP como "PLANILHA Anuário Brasileiro de Segurança Pública.xlsx", com dados de 2022 e 2023. Origem: <https://publicacoes.forumseguranca.org.br/handle/123456789/253>, acesso em 29/10/2026. SHA-256: `69121cc6954c2a6ef1c30e13bf3b73d19feb1914f97f5e5bf4dbc47a0d755ab6`.
+
 ## `relatorios/`
 
 Relatórios de validação gerados a cada importação (RF12), em `validacao-<versao>.csv` (um
