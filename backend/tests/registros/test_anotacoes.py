@@ -156,6 +156,81 @@ def test_variacao_nula(base, consulta, motivo):
     assert (registro.variacao_valor_pct, registro.variacao_taxa_pct) == (None, None), motivo
 
 
+# Variação do Brasil em recorte com UFs que não informaram (ADR 0009)
+
+
+@pytest.fixture
+def brasil_parcial():
+    """Brasil = soma das UFs que informaram, nos dois anos de cada recorte e no total.
+
+    PM: BA e PA informam nos dois anos; MA não informa em nenhum (mesmo conjunto).
+    PC: PA passa a "..." em 2025 (o conjunto muda). Total: PA passa a "..." em 2025.
+    """
+    refs = carregar_referencias()
+    recortes = obter_recortes([PC, PM])
+
+    def criar(local, ano, valor, recorte=None):
+        situacao = Situacao.NAO_DISPONIVEL if valor is None else Situacao.INFORMADO
+        if valor == 0:
+            situacao = Situacao.INEXISTENTE
+        RegistroAnual.objects.create(
+            **localidade(refs, local),
+            indicador=refs.indicadores["morte-intervencao-policial"],
+            recorte=recortes[recorte] if recorte else None,
+            fonte=refs.fontes["secretarias-seguranca"],
+            ano=ano,
+            unidade=VIT,
+            valor=None if valor is None else Decimal(valor),
+            situacao=situacao,
+            origem="T00!A1",
+        )
+
+    for recorte, valores in {
+        PM: {"BA": (40, 50), "PA": (10, 10), "MA": (None, None), "BR": (50, 60)},
+        PC: {"BA": (4, 6), "PA": (6, None), "MA": (0, 2), "BR": (10, 8)},
+        None: {"BA": (100, 90), "PA": (20, None), "MA": (5, 5), "BR": (125, 95)},
+    }.items():
+        for local, (em_2024, em_2025) in valores.items():
+            criar(local, 2024, em_2024, recorte)
+            criar(local, 2025, em_2025, recorte)
+
+
+def test_variacao_do_brasil_com_o_mesmo_conjunto_de_ufs(brasil_parcial):
+    assert um("BR", "morte-intervencao-policial", recorte=PM).variacao_valor_pct == Decimal(20)
+
+
+def test_variacao_do_brasil_nula_quando_o_conjunto_de_ufs_muda(brasil_parcial):
+    brasil = um("BR", "morte-intervencao-policial", recorte=PC)  # PA sai: 10 → 8 não é queda
+    assert (brasil.variacao_valor_pct, brasil.variacao_taxa_pct) == (None, None)
+    # A regra vale só para o Brasil: a UF que informou nos dois anos mantém a variação.
+    assert um("BA", "morte-intervencao-policial", recorte=PC).variacao_valor_pct == Decimal(50)
+
+
+def test_uf_com_fenomeno_inexistente_conta_como_informada(brasil_parcial):
+    # No recorte PC, MA tem "-" (zero) em 2024; com PA também "-" em 2025, as três UFs
+    # informaram nos dois anos e o conjunto não muda.
+    RegistroAnual.objects.filter(
+        estado__sigla="PA", recorte__isnull=False, ano=2025, situacao=Situacao.NAO_DISPONIVEL
+    ).update(valor=Decimal(0), situacao=Situacao.INEXISTENTE)
+    assert um("BR", "morte-intervencao-policial", recorte=PC).variacao_valor_pct == Decimal(-20)
+
+
+def test_variacao_nula_quando_uf_passa_a_informar(brasil_parcial):
+    RegistroAnual.objects.filter(estado__sigla="MA", recorte__isnull=False, ano=2025).filter(
+        situacao=Situacao.NAO_DISPONIVEL
+    ).update(valor=Decimal(3), situacao=Situacao.INFORMADO)  # MA entra em 2025 no recorte PM
+    assert um("BR", "morte-intervencao-policial", recorte=PM).variacao_valor_pct is None
+
+
+def test_regra_nao_se_aplica_ao_total_sem_recorte(brasil_parcial):
+    assert um("BR", "morte-intervencao-policial").variacao_valor_pct == Decimal(-24)  # 125 → 95
+
+
+def test_regra_nao_acrescenta_consultas(brasil_parcial, django_assert_num_queries):
+    with django_assert_num_queries(1):
+        list(anotar_registros())
+
+
 # Participação
 
 
