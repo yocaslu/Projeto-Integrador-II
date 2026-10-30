@@ -59,7 +59,7 @@ test("trocar o indicador refaz as consultas e volta ao último ano", async () =>
     expect(chamadas).toContain("/api/v1/comparacao/?uf=SP&indicador=feminicidio");
     expect(chamadas).toContain("/api/v1/ranking/?indicador=feminicidio&ano=2025");
   });
-  expect(await screen.findByText(/dados de 2024 e 2025/)).toBeInTheDocument();
+  expect(await screen.findByText(/taxa da região Sudeste não está disponível/)).toBeInTheDocument();
 });
 
 test("a região restringe as UFs e o ranking e leva a uma UF dela", async () => {

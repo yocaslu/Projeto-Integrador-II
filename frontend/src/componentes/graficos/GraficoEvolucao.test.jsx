@@ -36,7 +36,6 @@ test("mostra legenda, tabela, fonte e link do CSV", () => {
     "href",
     "/api/v1/comparacao/?uf=SP&indicador=mvi&formato=csv",
   );
-  expect(screen.queryByText(/série longa/)).not.toBeInTheDocument();
 });
 
 test("avisa quando parte da série usa taxas publicadas pelo FBSP", () => {
@@ -56,10 +55,9 @@ test("indica a fonte do denominador de cada período da série", () => {
   expect(fontesPorPeriodo([ponto(2024, null)])).toBe("");
 });
 
-test("avisa quando a série tem só dois anos e a região não tem taxa", () => {
+test("avisa quando a região não tem taxa", () => {
   render(<GraficoEvolucao comparacao={converter(comparacaoCurta)} />);
 
-  expect(screen.getByText(/dados de 2024 e 2025 no Anuário 2026/)).toBeInTheDocument();
   expect(screen.getByText(/taxa da região Sudeste não está disponível/)).toBeInTheDocument();
   expect(screen.getAllByRole("cell", { name: "Não disponível", hidden: true })).toHaveLength(2);
 });

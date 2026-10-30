@@ -7,7 +7,7 @@ export default function Rodape() {
     <footer className="rodape">
       <p>
         Fontes: Fórum Brasileiro de Segurança Pública (FBSP), Anuário Brasileiro de Segurança
-        Pública 2026; IBGE, estimativas e projeções da população, usadas como denominador das
+        Pública, edições de 2024 a 2026; IBGE, estimativas e projeções da população, usadas como denominador das
         taxas.
       </p>
       <p>

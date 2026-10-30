@@ -40,7 +40,7 @@ export default function CartoesResumo({ item, ano, base, totalUfs }) {
         </div>
       </dl>
       {SITUACOES[situacao] && <p className="nota">Situação do dado: {SITUACOES[situacao]}.</p>}
-      {observacao && <p className="nota">Nota do FBSP: {observacao}</p>}
+      {observacao && <p className="nota">Nota: {observacao}</p>}
     </section>
   );
 }

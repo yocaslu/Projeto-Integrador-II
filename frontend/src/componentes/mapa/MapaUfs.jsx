@@ -111,7 +111,7 @@ export default function MapaUfs({ ranking, siglasDaRegiao, regiao, ufSelecionada
         {siglasDaRegiao && " As UFs fora da região escolhida ficam esmaecidas."}
       </p>
       <p className="fonte">
-        Fonte: FBSP, Anuário Brasileiro de Segurança Pública 2026; malha das UFs: IBGE, API de
+        Fonte: FBSP, Anuário Brasileiro de Segurança Pública, edições de 2024 a 2026; malha das UFs: IBGE, API de
         malhas territoriais.
       </p>
     </figure>
