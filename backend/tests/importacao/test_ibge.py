@@ -1,11 +1,13 @@
 from decimal import Decimal
 
+import openpyxl
 import pandas as pd
 import pytest
 
 from apps.importacao.erros import ErroImportacao
 from apps.importacao.leitores import ibge
 from apps.importacao.linhas import Localidade, Nivel
+from apps.localidades.referencia import REGIAO_DA_UF
 from tests.conftest import PLANILHAS_DIR
 
 POP2024 = PLANILHAS_DIR / "brutos" / "POP2024_reduzido.ods"
@@ -67,3 +69,52 @@ def test_populacao_invalida_aborta(tmp_path):
 
     with pytest.raises(ErroImportacao, match="população inválida"):
         ibge.ler(copia(tmp_path, "POP2024_x.ods", zerar))
+
+
+def planilha_de_projecoes(destino, *, sem_grupo=None, sigla_extra=None, ano_inicial=2000):
+    """Planilha no formato do IBGE: cada grupo etário vale 10 em "Ambos" e 999 em "Homens"."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(["Projeções das Populações, Revisão 2024"])
+    ws.append([None, None, None, None, None, "ANO"])
+    anos = list(range(ano_inicial, ano_inicial + 71))
+    ws.append(["GRUPO ETÁRIO", "SEXO", "CÓD.", "SIGLA", "LOCAL", *anos])
+    siglas = ["BR", "NO", "ND", "SD", "SU", "CO", *REGIAO_DA_UF]
+    if sigla_extra:
+        siglas.append(sigla_extra)
+    for sigla in siglas:
+        for grupo in range(ibge.GRUPOS_ETARIOS):
+            if (sigla, grupo) != sem_grupo:
+                ws.append([f" {grupo}", "Ambos", 0, sigla, sigla, *[10] * 71])
+            ws.append([f" {grupo}", "Homens", 0, sigla, sigla, *[999] * 71])
+    ws.append(["Fonte: IBGE"])
+    wb.save(destino)
+    return destino
+
+
+def test_projecoes_somam_os_grupos_de_ambos_os_sexos_de_2012_a_2023(tmp_path):
+    lidas = ibge.ler_projecoes(planilha_de_projecoes(tmp_path / "projecoes.xlsx"))
+
+    assert [lida.ano for lida in lidas] == list(range(2012, 2024))
+    assert {lida.fonte for lida in lidas} == {"ibge-projecoes"}
+    for lida in lidas:
+        assert len(lida.valores) == 33
+        assert set(lida.valores.values()) == {Decimal(190)}
+    # As siglas regionais do IBGE viram as do projeto; SE continua sendo Sergipe.
+    assert Localidade(Nivel.REGIAO, "N") in lidas[0].valores
+    assert Localidade(Nivel.REGIAO, "SE") in lidas[0].valores
+    assert Localidade(Nivel.UF, "SE") in lidas[0].valores
+
+
+@pytest.mark.parametrize(
+    ("opcoes", "mensagem"),
+    [
+        ({"ano_inicial": 2001}, "anos do cabeçalho"),
+        ({"sem_grupo": ("AC", 3)}, "sem os 19 grupos etários: AC"),
+        ({"sigla_extra": "XX"}, "não reconhecida"),
+    ],
+)
+def test_projecoes_inconsistentes_abortam(tmp_path, opcoes, mensagem):
+    caminho = planilha_de_projecoes(tmp_path / "projecoes.xlsx", **opcoes)
+    with pytest.raises(ErroImportacao, match=mensagem):
+        ibge.ler_projecoes(caminho)

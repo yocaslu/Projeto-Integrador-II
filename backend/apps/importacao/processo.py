@@ -23,6 +23,7 @@ from apps.importacao.mapeamento import TABELAS, Tabela, contagem_esperada
 from apps.importacao.models import Carga
 from apps.localidades.referencia import REGIAO_DA_UF
 
+PREFIXO_DAS_PROJECOES = "projecoes"
 LINHA_DO_MANIFESTO = re.compile(r"^\|\s*`([^`]+)`\s*\|.*\|\s*`([0-9a-f]{64})`\s*\|\s*$")
 
 
@@ -66,6 +67,14 @@ def sha256(caminho: Path) -> str:
     return resumo.hexdigest()
 
 
+def _e_projecao(arquivo: Arquivo) -> bool:
+    return arquivo.nome.startswith(PREFIXO_DAS_PROJECOES)
+
+
+def _planilhas_do_anuario(arquivos: list[Arquivo]) -> list[Arquivo]:
+    return [a for a in arquivos if a.nome.endswith(".xlsx") and not _e_projecao(a)]
+
+
 def verificar_arquivos(dados: Path, manifesto: Path) -> list[Arquivo]:
     """Todo arquivo do manifesto precisa existir em `dados` com o mesmo SHA-256 (regra 1)."""
     arquivos = []
@@ -80,8 +89,9 @@ def verificar_arquivos(dados: Path, manifesto: Path) -> list[Arquivo]:
                 "planilha exige novo arquivo e novo hash em dados/README.md."
             )
         arquivos.append(Arquivo(nome, caminho, obtido))
-    planilhas = [a for a in arquivos if a.nome.endswith(".xlsx")]
-    if len(planilhas) != 1 or not any(a.nome.endswith(".ods") for a in arquivos):
+    if len(_planilhas_do_anuario(arquivos)) != 1 or not any(
+        a.nome.endswith(".ods") for a in arquivos
+    ):
         raise ErroImportacao("O manifesto precisa listar uma planilha .xlsx e as .ods do IBGE.")
     return arquivos
 
@@ -130,12 +140,14 @@ def importar(
             refs = gravacao.carregar_referencias()
 
             populacoes = [ibge.ler(a.caminho) for a in arquivos if a.nome.endswith(".ods")]
+            for arquivo in filter(_e_projecao, arquivos):
+                populacoes += ibge.ler_projecoes(arquivo.caminho)
             anos = [lida.ano for lida in populacoes]
             if len(set(anos)) != len(anos):
-                raise ErroImportacao(f"Estimativas do IBGE repetidas para o mesmo ano: {anos}")
+                raise ErroImportacao(f"População do IBGE repetida para o mesmo ano: {anos}")
             total_populacao = gravacao.gravar_populacao(populacoes, refs)
 
-            planilha = next(a for a in arquivos if a.nome.endswith(".xlsx"))
+            planilha = _planilhas_do_anuario(arquivos)[0]
             wb = fbsp.abrir(planilha.caminho)
             lidas = [fbsp.ler_tabela(wb, t, unidade_padrao, base_taxa) for t in tabelas]
             linhas = [linha for lida in lidas for linha in lida.linhas]

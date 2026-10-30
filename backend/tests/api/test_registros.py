@@ -1,7 +1,11 @@
 """/registros/, /registros/{id}/ e /populacao/ (contrato, seções 4.6 e 4.7; testes da seção 8)."""
 
+from decimal import Decimal
+
 import pytest
 
+from apps.localidades.models import Populacao
+from apps.registros.escolhas import Situacao, Unidade
 from apps.registros.models import RegistroAnual
 
 URL = "/api/v1/registros/"
@@ -343,3 +347,36 @@ def test_populacao_niveis_ordem_e_filtros(client, serie):
 @pytest.mark.parametrize("consulta", ["ordenar=taxa", "indicador=mvi", "regiao=NE", "tamanho=0"])
 def test_populacao_parametros_invalidos(client, serie, consulta):
     assert client.get(f"/api/v1/populacao/?{consulta}").status_code == 400
+
+
+def test_taxa_calculada_indica_a_fonte_da_populacao_do_ano(client, serie):
+    # 2023 usa as Projeções, 2024 as Estimativas (CLAUDE.md, pendência 12).
+    Populacao.objects.create(
+        estado=serie.estados["BA"], fonte=serie.fontes["ibge-projecoes"], ano=2023, valor=1_000_000
+    )
+    RegistroAnual.objects.create(
+        estado=serie.estados["BA"],
+        indicador=serie.indicadores["mvi"],
+        fonte=serie.fontes["secretarias-seguranca"],
+        ano=2023,
+        unidade=Unidade.VITIMAS,
+        valor=Decimal(80),
+        taxa_publicada=Decimal("8"),
+        situacao=Situacao.INFORMADO,
+        origem="T02!B1",
+    )
+
+    corpo = client.get("/api/v1/registros/?uf=BA&indicador=mvi&ano_max=2024&ordenar=ano").json()
+    taxas = {r["ano"]: r["taxa"] for r in corpo["results"]}
+
+    assert taxas[2023]["origem"] == taxas[2024]["origem"] == "calculada"
+    assert taxas[2023]["fonte"]["nome"] == serie.fontes["ibge-projecoes"].nome
+    assert taxas[2024]["fonte"]["nome"] == serie.fontes["ibge-estimativas"].nome
+
+
+def test_taxa_publicada_continua_com_a_fonte_do_indicador(client, serie):
+    corpo = client.get("/api/v1/registros/?uf=BA&indicador=feminicidio").json()
+    taxa = corpo["results"][0]["taxa"]
+
+    assert taxa["origem"] == "publicada"
+    assert taxa["fonte"]["nome"] == serie.fontes["ibge-projecoes"].nome

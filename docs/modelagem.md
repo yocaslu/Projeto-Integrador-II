@@ -38,7 +38,7 @@ a `5` e Brasil `1`. Como Brasil e Norte têm o mesmo código, a unicidade em REG
 `codigo_ibge`). A sigla sozinha também é ambígua entre níveis (`SE` = Sergipe ou Sudeste), por
 isso a API identifica uma localidade pelo par (nível, código).
 
-POPULACAO guarda as estimativas do IBGE de 2024 e 2025 para estados, regiões e Brasil (33
+POPULACAO guarda as projeções do IBGE de 2012 a 2023 e as estimativas de 2024 e 2025 (ADR 0011) para estados, regiões e Brasil (33
 localidades × 2 anos), as mesmas adotadas pelo FBSP, usadas no cálculo das taxas por 100 mil
 habitantes.
 
@@ -110,7 +110,7 @@ escopo (ADR 0004).
 ## 7. Taxa, variação e participação
 
 O sistema **calcula** a taxa por 100 mil habitantes a partir de POPULACAO quando há população para
-o ano e a localidade; nos demais casos (outras bases e a série de MVI de 2012 a 2023), usa a taxa
+o ano e a localidade (2012 a 2025); nas outras bases, usa a taxa
 publicada, guardada em `taxa_publicada` com 12 casas (ADR 0003). A variação percentual entre anos e
 a participação de um indicador no seu indicador-pai (ou de um recorte no total do indicador), que
 reproduz as proporções publicadas pelo FBSP (T09, T21), são **calculadas na consulta** e não são
@@ -155,7 +155,7 @@ variação e participação (ADR 0008).
 | Entidade | Linhas |
 | :--- | ---: |
 | REGISTROS_ANUAIS | 1.980 (1.750 lidos + 230 regionais calculados, 24 deles não disponíveis) |
-| POPULACAO | 66 |
+| POPULACAO | 462 |
 | INDICADORES | 18 |
 | REGIOES + ESTADOS | 6 + 27 |
 | FONTES | 5 |

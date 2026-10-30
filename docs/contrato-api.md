@@ -157,10 +157,10 @@ O catálogo completo, com ids fixos, está na seção 4.5.
   e há população para o ano e a localidade) ou `publicada` (`taxa_publicada` arredondada). `null`
   quando `valor` é `null`, ou seja, sempre que não há taxa: sem valor do registro ou sem
   denominador (ADR 0008).
-- `fonte`: fonte do **denominador**, lida de `INDICADORES.fonte_taxa` (ADR 0005), a mesma para
-  `origem` `calculada` e `publicada`: IBGE – Estimativas para habitantes, IBGE – Projeções para
-  mulheres, Senatran para veículos, Banco Central para instituições. `null` quando `valor` é
-  `null`.
+- `fonte`: fonte do **denominador**. Em `origem` `calculada`, é a fonte da linha de `POPULACAO` usada
+  no ano: IBGE – Projeções de 2012 a 2023 e IBGE – Estimativas em 2024 e 2025 (ADR 0011). Em `origem`
+  `publicada`, é `INDICADORES.fonte_taxa` (ADR 0005): IBGE – Projeções para mulheres, Senatran para
+  veículos, Banco Central para instituições. `null` quando `valor` é `null`.
 - `valor` é `null` quando: `situacao = nao_disponivel`; ou não há denominador
   (ex.: totais regionais de feminicídio, de roubo e furto de veículo e de roubo a instituição
   financeira).
@@ -339,8 +339,8 @@ reordenada nem removida. Descrições e URLs completas no ADR 0005.
 | `id` | `slug` | `nome` | Onde aparece |
 | ---: | :--- | :--- | :--- |
 | 1 | `secretarias-seguranca` | Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP) | `fonte` de todo registro |
-| 2 | `ibge-estimativas` | IBGE – Estimativas da população residente | `fonte` da população; `taxa.fonte` na base 100 mil habitantes |
-| 3 | `ibge-projecoes` | IBGE – Projeções da população | `taxa.fonte` na base 100 mil mulheres |
+| 2 | `ibge-estimativas` | IBGE – Estimativas da população residente | `fonte` da população e `taxa.fonte` na base 100 mil habitantes, em 2024 e 2025 |
+| 3 | `ibge-projecoes` | IBGE – Projeções da população | `fonte` da população e `taxa.fonte` na base 100 mil habitantes, de 2012 a 2023; `taxa.fonte` na base 100 mil mulheres |
 | 4 | `senatran-frota` | Senatran – Frota de veículos | `taxa.fonte` na base 100 mil veículos |
 | 5 | `bcb-instituicoes` | Banco Central do Brasil – Instituições financeiras | `taxa.fonte` na base 100 instituições |
 

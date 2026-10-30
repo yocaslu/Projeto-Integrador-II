@@ -167,7 +167,7 @@ Só a T02 publica totais regionais. Nas demais tabelas (28 localidades: Brasil e
 | Registros regionais calculados (`metodo = soma_ufs`, seção 4.8) | 230 |
 | **Registros (`REGISTROS_ANUAIS`)** | **1.980** |
 | Recortes (`RECORTES`) | 4 |
-| População (`POPULACAO`) | 66 (33 localidades × 2 anos) |
+| População (`POPULACAO`) | 462 (33 localidades × 14 anos: projeções de 2012 a 2023, estimativas de 2024 e 2025) |
 
 Os 230 calculados são 46 combinações (indicador, recorte, unidade, ano) das tabelas T03–T21, cada uma em 5 regiões. A MVI não entra na conta porque a T02 já publica as regiões. Dos 230, 24 ficam nulos (`nao_disponivel`): os quatro recortes de corporação e situação da T08 no Norte, Nordeste e Sudeste, em 2024 e 2025.
 
@@ -186,7 +186,7 @@ importar_anuario [--dados DIR] [--relatorio DIR] [--manifesto ARQ] [--somente-va
 ├─ 3. carga = Carga(versao, arquivos, status="em_andamento")   # não é criada com --somente-validar
 ├─ 4. with transaction.atomic():
 │     ├─ carregar_referencias()                 # fontes (primeiro, ordem fixa), regiões, UFs, indicadores (update_or_create)
-│     ├─ populacoes = [ibge.ler(ods) ...]       # 33 localidades por ano; 66 linhas
+│     ├─ populacoes = [ibge.ler(ods) ...]       # 33 localidades por ano; 462 linhas, com as projeções
 │     ├─ gravar_populacao(populacoes)
 │     ├─ lidas = [fbsp.ler_tabela(wb, t) for t in TABELAS]   # linhas das donas + valores publicados (variação, proporção, T01, T09)
 │     ├─ linhas += agregacao.agregar(linhas, regiao_da_uf)  # seção 4.8; somável pela unidade da chave; diverge → CommandError
@@ -462,7 +462,7 @@ Todas as comparações são feitas em **precisão total, sem arredondar nenhum l
 
 | Verificação | Regra | Severidade |
 | :--- | :--- | :--- |
-| Taxa calculada × publicada | Base 100 mil hab., anos 2024 e 2025, vítimas e ocorrências: `valor / pop × 100000` contra `taxa_publicada` | divergência acima da tolerância |
+| Taxa calculada × publicada | Base 100 mil hab., 2012 a 2025, vítimas e ocorrências: `valor / pop × 100000` contra `taxa_publicada` | divergência acima da tolerância |
 | Variação calculada × publicada | Variação **da taxa** (a mesma de `variacao.taxa_pct` na API) contra a coluna "Variação (%)". A coluna do FBSP não é a variação dos absolutos | divergência acima da tolerância |
 | Participação calculada × proporção publicada | T09 (MDIP ÷ MVI × 100) e T21 (feminicídio ÷ homicídio de mulheres × 100), mesma regra da `participacao` da API | divergência acima da tolerância |
 | Conferência T01 × T02 | MVI 2024–2025, valor e taxa | divergência |
@@ -487,4 +487,4 @@ Colunas do CSV: `tabela, origem, indicador, localidade, recorte, unidade, ano, v
 - `tests/fixtures/planilhas/`: planilhas reduzidas geradas por `tests/fixtures/gerar_planilhas.py` a partir das reais, com manifesto de hashes próprio. Do FBSP, só as abas T01, T02, T03, T08, T09, T15 e T21, mas com **todas as linhas**: a agregação regional exige todas as UFs de cada região, e o leitor confere 28 ou 33 localidades. Do IBGE, só a aba `BRASIL_E_UFs`. Com elas, a importação gera 1.134 lidos + 120 calculados = 1.254 registros e 66 populações.
 - Unitários: `normalizar_celula`, `normalizar_taxa`, `separar_marcas`, `resolver_localidade`, o leitor do FBSP sobre uma aba sintética (âncora, colunas órfãs e ignoradas, base da taxa, notas, células inválidas e vazias, contagens), leitura do IBGE, `agregacao.agregar`, relatório, referências e constraints do banco.
 - Integração (`tests/importacao/test_processo.py`, `test_comando.py`): importação completa sobre as fixtures; idempotência (duas execuções, mesmos `id`s); `--somente-validar` sem gravar nada; rollback (célula inválida → nada gravado, carga `falhou`); agregado publicado divergente → aborta; taxa divergente plantada → relatório e `--estrito`; hash divergente; órfãos; ids de fontes e recortes num banco limpo.
-- Contra a planilha real (`@pytest.mark.planilha_real`): toda âncora é encontrada na linha 5, toda coluna de taxa passa na conferência da base, nenhuma coluna órfã, 1.750 registros lidos + 230 regionais calculados (24 nulos) = 1.980, e 66 populações; nenhuma divergência entre agregados publicados e a soma das UFs; e nenhuma divergência acima de 1e-6 no relatório (taxas de vítimas e ocorrências, variação da taxa, T09 e proporção da T21 — conferido na planilha versionada).
+- Contra a planilha real (`@pytest.mark.planilha_real`): toda âncora é encontrada na linha 5, toda coluna de taxa passa na conferência da base, nenhuma coluna órfã, 1.750 registros lidos + 230 regionais calculados (24 nulos) = 1.980, e 462 populações; nenhuma divergência entre agregados publicados e a soma das UFs; e nenhuma divergência acima de 1e-6 no relatório (taxas de vítimas e ocorrências, variação da taxa, T09 e proporção da T21 — conferido na planilha versionada).
