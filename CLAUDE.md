@@ -14,9 +14,11 @@ Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qua
 
 ## Escopo atual
 
-**A fase do backend está concluída**: modelos, importação da planilha, API `/api/v1/` com todos os recursos do contrato (inclusive CSV e cache), esquema OpenAPI e teste de desempenho do RNF02. Mudanças no backend seguem as regras abaixo. **A próxima fase é o frontend**, que só começa com pedido explícito.
+**A fase do backend está concluída**: modelos, importação da planilha, API `/api/v1/` com todos os recursos do contrato (inclusive CSV e cache), esquema OpenAPI e teste de desempenho do RNF02. Mudanças no backend seguem as regras abaixo. **A fase atual é o frontend.**
 
-- O frontend (React, Recharts, Leaflet) e os testes de ponta a ponta (Playwright + axe-core) **vêm depois**. Não crie, altere nem instale nada em `frontend/` ou `e2e/` sem pedido explícito, e suba só `db` e `backend` no Docker Compose.
+- Feito no frontend: filtros (indicador, UF, ano do ranking), cartões da UF (taxa, variação, posição, número absoluto), gráfico de evolução UF × região × Brasil (`/comparacao/`), comparação entre estados em barras (`/ranking/`), tabelas de dados acessíveis e links de CSV; testes Jest e Playwright + axe com o painel carregado.
+- Falta no frontend: mapa por UF (RF06, Leaflet, com os dados do ranking) e filtro por região (RF04).
+- O frontend só consome a API; nenhum cálculo de taxa, variação ou ranking é refeito no cliente.
 - Ordem de entrega (concluída): `localidades` e `catalogo` → `importacao` (comando + relatório de validação) → `registros` (consultas de taxa, variação, ranking, comparação) → `api` (endpoints, filtros, erros, CSV, cache) → documentação OpenAPI.
 - Ordem dentro da app `api` (concluída; cada passo com os testes da seção 8 do contrato que lhe cabem):
   1. `parametros.py` (regras comuns da seção 2 do contrato) e `campos.py` (decimais da seção 1.2);
@@ -31,7 +33,7 @@ Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qua
 
 ## Comandos
 
-Rodam a partir da raiz do repositório. Serviços do Compose: `db`, `backend` e `frontend` (este fica desligado nesta fase).
+Rodam a partir da raiz do repositório. Serviços do Compose: `db`, `backend` e `frontend` (painel em `http://localhost:5173`).
 
 **Primeira vez**
 ```bash
@@ -234,8 +236,8 @@ projeto-integrador-ii/
 │       ├── localidades/ · catalogo/
 │       ├── conftest.py
 │       └── fixtures/                  # planilhas reduzidas (gerar_planilhas.py; abas selecionadas, todas as linhas)
-├── frontend/                          ⏸ fase seguinte
-├── e2e/                               ⏸ fase seguinte
+├── frontend/                          # React + Recharts: paginas/Painel.jsx, componentes/, hooks/, utils/ (cores e formatação)
+├── e2e/                               # Playwright + axe-core contra o ambiente com dados importados
 ├── dados/
 │   ├── README.md                      # origem e SHA-256 de cada arquivo
 │   ├── brutos/                        # anuario-2026.xlsx, POP2024_20241230.ods, POP2025_20260828.ods

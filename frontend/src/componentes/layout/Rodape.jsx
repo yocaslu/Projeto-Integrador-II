@@ -7,7 +7,8 @@ export default function Rodape() {
     <footer className="rodape">
       <p>
         Fontes: Fórum Brasileiro de Segurança Pública (FBSP), Anuário Brasileiro de Segurança
-        Pública 2026; IBGE, estimativas populacionais de 2024 e 2025.
+        Pública 2026; IBGE, estimativas e projeções da população, usadas como denominador das
+        taxas.
       </p>
       <p>
         Software livre sob a licença GNU AGPL-3.0. <a href={__REPOSITORIO_URL__}>Código-fonte</a>

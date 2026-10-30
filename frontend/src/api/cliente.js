@@ -9,6 +9,8 @@ export function paraNumero(texto) {
   return Number.isFinite(numero) ? numero : null;
 }
 
+// Serve para registros de /registros/, pontos de /comparacao/ e itens de /ranking/,
+// que têm os mesmos campos numéricos.
 export function converterRegistro(registro) {
   return {
     ...registro,
@@ -25,13 +27,45 @@ export function converterRegistro(registro) {
   };
 }
 
-export async function buscar(caminho, parametros = {}) {
-  const consulta = new URLSearchParams(parametros).toString();
-  const resposta = await fetch(`${API_URL}${caminho}${consulta ? `?${consulta}` : ""}`);
+// Monta a URL de um recurso, sem parâmetros vazios: a API responde 400 a parâmetro vazio.
+export function urlApi(caminho, parametros = {}) {
+  const definidos = Object.entries(parametros).filter(
+    ([, valor]) => valor !== null && valor !== undefined && valor !== "",
+  );
+  const consulta = new URLSearchParams(definidos).toString();
+  return `${API_URL}${caminho}${consulta ? `?${consulta}` : ""}`;
+}
+
+export async function buscar(caminho, parametros = {}, { signal } = {}) {
+  const resposta = await fetch(urlApi(caminho, parametros), { signal });
   if (!resposta.ok) {
     // Erros chegam no formato Problem Details (RFC 9457)
     const problema = await resposta.json().catch(() => ({}));
     throw new Error(problema.detail ?? `Erro ${resposta.status}`);
   }
   return resposta.json();
+}
+
+export function buscarMetadados(opcoes) {
+  return buscar("/metadados/", {}, opcoes);
+}
+
+export function buscarEstados(opcoes) {
+  return buscar("/estados/", {}, opcoes);
+}
+
+export async function buscarComparacao(parametros, opcoes) {
+  const dados = await buscar("/comparacao/", parametros, opcoes);
+  return {
+    ...dados,
+    series: dados.series.map((serie) => ({
+      ...serie,
+      pontos: serie.pontos.map(converterRegistro),
+    })),
+  };
+}
+
+export async function buscarRanking(parametros, opcoes) {
+  const dados = await buscar("/ranking/", parametros, opcoes);
+  return { ...dados, results: dados.results.map(converterRegistro) };
 }
