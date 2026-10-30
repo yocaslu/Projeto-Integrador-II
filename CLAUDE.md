@@ -200,7 +200,8 @@ projeto-integrador-ii/
 ├── .github/
 │   ├── workflows/
 │   │   ├── ci.yml                     # Ruff, migrações, pytest, planilha real, diff do openapi.yaml, desempenho
-│   │   └── deploy.yml
+│   │   ├── deploy.yml
+│   │   └── release.yml                # tag vX.Y.Z: confere versões, roda o CI, publica imagens e o release (ADR 0010)
 │   └── pull_request_template.md       # checklist da Definição de pronto
 ├── backend/
 │   ├── pyproject.toml · Dockerfile · manage.py · .python-version
@@ -248,7 +249,7 @@ projeto-integrador-ii/
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
 │   ├── modelagem.md                   # modelagem de dados (fonte da verdade; transcrição do roteiro com os ADRs)
 │   ├── api/openapi.yaml               # esquema gerado e versionado (diff verificado no CI)
-│   └── adr/                           # 0001 a 0009 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice; 0009: variação do Brasil em recortes)
+│   └── adr/                           # 0001 a 0010 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice; 0009: variação do Brasil em recortes; 0010: versões e releases)
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
 

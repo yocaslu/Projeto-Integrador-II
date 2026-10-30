@@ -4,15 +4,16 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_call: # release.yml, antes de publicar as imagens
 
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  # Nesta fase só o backend é desenvolvido (CLAUDE.md, "Escopo atual"): os jobs do frontend e de
-  # ponta a ponta rodam apenas quando o push ou o PR muda frontend/ ou e2e/. Pulados, aparecem
-  # como "skipped", o que conta como aprovado nas checagens obrigatórias.
+  # Os jobs do frontend e de ponta a ponta rodam quando o push ou o PR muda frontend/ ou e2e/, e
+  # sempre em release. Pulados, aparecem como "skipped", o que conta como aprovado nas checagens
+  # obrigatórias.
   mudancas:
     name: Detectar mudanças
     runs-on: ubuntu-latest
