@@ -88,7 +88,7 @@ export default function GraficoEvolucao({ comparacao }) {
 
       <div className="grafico__area grafico__area--evolucao">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={linhas} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
+          <LineChart data={linhas} margin={{ top: 8, right: 24, bottom: 8, left: 0 }}>
             <CartesianGrid stroke={CORES.grade} vertical={false} />
             <XAxis
               dataKey="ano"
