@@ -2,10 +2,12 @@
 
 Plataforma web de análise de dados que estrutura em banco relacional, disponibiliza por meio de
 uma API REST própria e visualiza de forma interativa e acessível os principais indicadores do
-Anuário Brasileiro de Segurança Pública 2026, do Fórum Brasileiro de Segurança Pública (FBSP),
-com taxas calculadas a partir das estimativas populacionais do IBGE.
+Anuário Brasileiro de Segurança Pública, do Fórum Brasileiro de Segurança Pública (FBSP), com taxas
+por habitante calculadas a partir da população do IBGE.
 
 Projeto Integrador II.
+
+![Painel com filtros, cartões da UF, gráfico de evolução, ranking das UFs e mapa do Brasil](docs/imagens/painel-visao-geral.png)
 
 ## Situação
 
@@ -20,31 +22,55 @@ corporação e situação do policial), feminicídio, roubo (total e subtipos) e
 celulares; o Anuário não publica total de furtos), de 2022 a 2025 para as 27 UFs, as cinco regiões
 e o Brasil, e a série histórica de MVI desde 2012. Os dados vêm das edições de 2024 a 2026 do Anuário.
 
+## Interface
+
+O painel é uma única página, que consome só a API:
+
+- **Filtros:** indicador, região, UF e ano do ranking.
+- **Cartões da UF:** taxa, variação em relação ao ano anterior, posição entre as UFs e número absoluto, com a situação do dado e as notas.
+- **Evolução:** linhas da UF, da sua região e do Brasil, com todos os anos do indicador.
+- **Comparação entre estados:** barras ordenadas pela taxa. Clicar em uma barra seleciona a UF.
+- **Mapa:** UFs coloridas em cinco faixas de taxa. Clicar em uma UF também a seleciona.
+- **Dados abertos:** tabelas com os números de cada gráfico, links para baixar em CSV e fontes indicadas em cada bloco.
+
+Com uma região escolhida, o ranking mostra só as UFs dela, com a posição entre as 27, e o mapa esmaece as demais:
+
+![Painel filtrado pela região Nordeste, com a Bahia selecionada e a série de 2022 a 2025](docs/imagens/painel-filtro-regiao.png)
+
+A página se adapta a telas estreitas:
+
+<img src="docs/imagens/painel-celular.png" alt="Painel no celular, com filtros, cartões e gráfico em uma coluna" width="320">
+
 ## Ambiente de desenvolvimento
 
-Requisitos: Docker com o plugin Compose. Nesta fase, só o banco e o backend sobem.
+Requisitos: Docker com o plugin Compose.
 
 ```bash
 cp .env.example .env
-docker compose up -d --build db backend
+docker compose up -d --build
 docker compose exec backend uv run python manage.py migrate
 docker compose exec backend uv run python manage.py importar_anuario
 ```
 
 | Serviço | Endereço |
 | --- | --- |
+| Painel | <http://localhost:5173> |
 | API | <http://localhost:8000/api/v1/> |
 | Documentação interativa (Swagger UI) | <http://localhost:8000/api/v1/docs/> |
 | Documentação (ReDoc) | <http://localhost:8000/api/v1/redoc/> |
 | Esquema OpenAPI 3 | <http://localhost:8000/api/v1/schema/> |
 
-Antes de importar, a API responde 503 em todos os recursos de dados.
+Antes de importar, a API responde 503 em todos os recursos de dados, e o painel mostra o erro.
 
 ### Importação dos dados
 
-`importar_anuario` lê a planilha do FBSP e as estimativas do IBGE de `dados/brutos/`, confere o
+`importar_anuario` lê as planilhas do FBSP e a população do IBGE de `dados/brutos/`, confere o
 SHA-256 de cada arquivo contra `dados/README.md`, grava tudo numa transação e gera o relatório de
 validação em `dados/relatorios/` (CSV e Markdown). Rodar de novo não duplica nada nem muda os `id`s.
+
+Cada ano vem da edição mais recente do Anuário que o traz: 2024 e 2025 da edição de 2026, 2023 da de
+2025 e 2022 da de 2024. A série de MVI vem só da edição de 2026. Quando uma edição revisa um valor, o
+número anterior fica na `observacao` do registro ([ADR 0012](docs/adr/0012-edicoes-anteriores-do-anuario.md)).
 
 | Opção | Efeito |
 | --- | --- |
@@ -65,7 +91,7 @@ API REST somente leitura (`GET`, `HEAD`, `OPTIONS`), com nomes em português.
 | `/regioes/`, `/estados/` | Brasil, cinco regiões e 27 UFs, com os códigos do IBGE |
 | `/indicadores/`, `/recortes/`, `/fontes/` | Catálogo de indicadores (em hierarquia), recortes e fontes |
 | `/registros/` | Valores, taxas, variação em relação ao ano anterior, participação, situação do dado e notas, com filtros por nível, UF, região, indicador, ano, unidade, recorte e situação |
-| `/populacao/` | Estimativas do IBGE usadas nas taxas |
+| `/populacao/` | População do IBGE usada nas taxas, de 2012 a 2025 |
 | `/ranking/` | UFs ordenadas por taxa, valor ou participação, com empates |
 | `/comparacao/` | Série de uma UF ao lado da sua região e do Brasil |
 | `/metadados/` | Tudo o que um painel precisa para montar filtros e legendas numa requisição |
@@ -97,12 +123,16 @@ docker compose exec backend uv run ruff check . && docker compose exec backend u
 docker compose exec backend uv run pytest                              # cobertura mínima de 75%
 docker compose exec backend uv run pytest -m planilha_real --no-cov    # importa a planilha completa
 docker compose exec backend uv run pytest -m desempenho --no-cov       # RNF02: p95 < 500 ms
+docker compose exec frontend npx jest --ci                             # testes do painel
+(cd e2e && npm ci && npx playwright install chromium && npx playwright test)   # ponta a ponta e axe-core
 ```
+
+Os testes de ponta a ponta precisam dos dados importados.
 
 O CI (GitHub Actions) roda, no backend, o Ruff, a checagem de migrações pendentes, os testes com
 cobertura, a importação da planilha real, a comparação do `docs/api/openapi.yaml` com o esquema
-gerado e o teste de desempenho. Os testes do frontend e de ponta a ponta só rodam quando
-`frontend/` ou `e2e/` mudam.
+gerado e o teste de desempenho. Os testes do frontend e de ponta a ponta rodam quando `frontend/` ou
+`e2e/` mudam e em todo release.
 
 ## Estrutura
 
@@ -110,11 +140,11 @@ gerado e o teste de desempenho. Os testes do frontend e de ponta a ponta só rod
 | --- | --- |
 | `.github/` | Pipelines do GitHub Actions (CI e implantação) e modelo de pull request. |
 | `backend/` | API em Django e Django REST Framework, gerenciada com uv; apps `localidades`, `catalogo`, `registros`, `importacao` e `api`. |
-| `frontend/` | Dashboard em React, com Recharts e Leaflet (próxima fase). |
-| `e2e/` | Testes de ponta a ponta e de acessibilidade com Playwright e axe-core (próxima fase). |
+| `frontend/` | Painel em React, com Recharts e Leaflet. |
+| `e2e/` | Testes de ponta a ponta e de acessibilidade com Playwright e axe-core. |
 | `dados/` | Planilhas oficiais do FBSP e do IBGE, com o SHA-256 de cada uma, e relatórios de validação. |
 | `infra/` | Compose de produção, Traefik e scripts de implantação. |
-| `docs/` | Arquitetura, contrato da API, importação, modelagem, esquema OpenAPI e decisões (ADR). |
+| `docs/` | Arquitetura, contrato da API, importação, modelagem, esquema OpenAPI, decisões (ADR) e capturas da interface. |
 
 O índice da documentação está em [`docs/README.md`](docs/README.md).
 
@@ -159,9 +189,10 @@ O workflow `release.yml` confere a tag, roda o CI completo, publica as imagens (
 
 ## Fontes dos dados
 
-- Fórum Brasileiro de Segurança Pública (FBSP), 20º Anuário Brasileiro de Segurança Pública (2026).
-- Instituto Brasileiro de Geografia e Estatística (IBGE), estimativas da população residente de
-  2024 e 2025 e projeções da população (taxas por 100 mil mulheres).
+- Fórum Brasileiro de Segurança Pública (FBSP), Anuário Brasileiro de Segurança Pública, edições de
+  2024, 2025 e 2026.
+- Instituto Brasileiro de Geografia e Estatística (IBGE), projeções da população (2012 a 2023 e taxas
+  por 100 mil mulheres), estimativas da população residente (2024 e 2025) e malha das UFs.
 - Secretaria Nacional de Trânsito (Senatran), frota de veículos, e Banco Central do Brasil,
   instituições financeiras, como denominadores de taxas publicadas pelo FBSP.
 
