@@ -99,7 +99,7 @@ MVI (indicador-síntese), letalidade policial (mortes decorrentes de intervenç�
 - Características dos agentes são **recortes** (`RECORTES` + `RECORTE_ITENS`, pares dimensão/valor; dimensões `corporacao` e `situacao_policial`, ex.: corporação = Polícia Militar + situação = em serviço). Registro sem recorte = total.
 - `situacao`: `informado` | `inexistente` (“-” → valor 0) | `nao_disponivel` (“...” → valor nulo). Notas do FBSP vão em `observacao`.
 - `unidade` (`vitimas` | `ocorrencias`) fica no **registro**; `INDICADORES` guarda `unidade_padrao` e `base_taxa` (100 mil habitantes; 100 mil mulheres; 100 mil veículos; 100 instituições). A base vale para as duas unidades.
-- Taxa por 100 mil habitantes é **calculada** a partir de `POPULACAO` (IBGE 2024 e 2025, as mesmas estimativas usadas pelo FBSP); nos demais casos (outras bases e série MVI 2012–2023) usa-se `taxa_publicada`. A variação percentual é calculada na consulta e nunca armazenada.
+- Taxa por 100 mil habitantes é **calculada** a partir de `POPULACAO` (IBGE 2024 e 2025, as mesmas estimativas usadas pelo FBSP); nos demais casos (outras bases e série MVI 2012–2023) usa-se `taxa_publicada`. A variação percentual é calculada na consulta e nunca armazenada. A população de 2012 a 2023 já foi decidida e aguarda implementação (pendência 12).
 
 Ajustes ao modelo do roteiro, implementados nas migrações iniciais (ADR 0007, que também registra as decisões da implementação):
 1. `INDICADORES.slug` (único) — exigido pelo contrato da API.
@@ -335,7 +335,7 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 
 ## Pendências que exigem decisão da equipe
 
-Não decida sozinho; pergunte antes de implementar o que depender destes pontos. Hoje todas estão resolvidas; uma pendência nova entra aqui com o próximo número.
+Não decida sozinho; pergunte antes de implementar o que depender destes pontos. Uma pendência nova entra aqui com o próximo número. Pendência **decidida** já tem decisão da equipe, mas ainda não foi implementada: siga o que está escrito nela e, ao implementar, registre o ADR e marque-a como resolvida.
 
 1. ~~Número de ocorrências~~ — **resolvida (ADR 0004):** importadas; `unidade` no registro, `unidade_padrao` no indicador.
 2. ~~Perfis de vítimas~~ — **resolvida (ADR 0004):** fora do escopo.
@@ -348,6 +348,12 @@ Não decida sozinho; pergunte antes de implementar o que depender destes pontos.
 9. ~~Catálogo de fontes~~ — **resolvida (ADR 0005):** `FONTES.slug` e ids fixos 1–5 (ajuste 13).
 10. ~~API sem carga concluída~~ — **resolvida (ADR 0005):** 503, `no-store`, sem ETag (contrato, 7.1).
 11. ~~Método do teste do RNF02~~ — **resolvida (ADR 0005):** pytest `-m desempenho` no CI, carga real, cliente em processo, p95 por recurso (`tests/desempenho/README.md`).
+12. **População de 2012 a 2023** — **decidida, implementação pendente:**
+    - **O quê:** carregar em `POPULACAO` as **Projeções da População do IBGE** de 2012 a 2023, para as 27 UFs, as 5 regiões e o Brasil, com `fonte = ibge-projecoes`. 2024 e 2025 continuam com as **Estimativas** (`ibge-estimativas`, os `.ods` atuais), que são as mesmas usadas pelo FBSP na edição de 2026; nunca troque um ano de fonte.
+    - **Por quê:** com população em todos os anos, a taxa por 100 mil habitantes passa a ser calculada (regra 11), inclusive nas regiões, e a série de MVI de 2012 a 2023 passa a ser conferida contra a `taxa_publicada` no relatório (RF12). A população também fica pronta para a importação de edições anteriores do Anuário.
+    - **Conferência obrigatória antes de gravar:** comparar a população de cada ano com a população implícita na T02 (valor ÷ taxa publicada × 100 000). Em 2020 a 2023 já se sabe que o FBSP usa as Projeções; carregue só os anos de 2012 a 2019 que baterem. Ano que não bater fica sem população (a taxa continua a publicada), e a diferença vai para o ADR.
+    - **`taxa.fonte`:** em taxa `calculada`, deve indicar a fonte da linha de `POPULACAO` usada no ano (Projeções em 2012–2023, Estimativas em 2024–2025), e não só `INDICADORES.fonte_taxa`. Isso altera o comportamento do ADR 0005 e precisa constar no ADR novo e no `contrato-api.md`.
+    - **Ao implementar:** ADR próprio; arquivo do IBGE em `dados/brutos/` com hash no manifesto (regra 1); leitor em `leitores/ibge.py`; contagem de linhas de população atualizada em `docs/importacao.md`; o resumo do modelo neste arquivo ("Taxa por 100 mil habitantes é calculada…") e `docs/modelagem.md` passam a citar 2012–2025.
 
 ---
 
