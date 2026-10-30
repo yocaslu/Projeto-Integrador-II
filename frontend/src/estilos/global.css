@@ -264,3 +264,9 @@ a {
   height: 1rem;
   border: 1px solid var(--cor-texto);
 }
+
+/* O contorno de foco dos gráficos fica só para a navegação por teclado, não para o clique. */
+.recharts-surface:focus:not(:focus-visible),
+.recharts-wrapper:focus:not(:focus-visible) {
+  outline: none;
+}
