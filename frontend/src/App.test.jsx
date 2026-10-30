@@ -1,6 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import App from "./App.jsx";
-import { comparacaoMvi, estados, metadados, rankingMvi, simularApi } from "./testes/respostas.js";
+import {
+  comparacaoMvi,
+  estados,
+  malha,
+  metadados,
+  rankingMvi,
+  simularApi,
+} from "./testes/respostas.js";
 
 test("exibe o título, as fontes e o link do repositório", async () => {
   simularApi({
@@ -8,6 +15,7 @@ test("exibe o título, as fontes e o link do repositório", async () => {
     "/estados/": estados,
     "/comparacao/": comparacaoMvi,
     "/ranking/": rankingMvi,
+    "/malhas/ufs.json": malha,
   });
   render(<App />);
 

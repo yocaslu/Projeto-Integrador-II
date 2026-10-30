@@ -4,6 +4,7 @@ import {
   comparacaoMvi,
   estados,
   metadados,
+  malha,
   rankingMvi,
   simularApi,
 } from "../testes/respostas.js";
@@ -15,6 +16,7 @@ function respostasPadrao() {
     "/estados/": estados,
     "/comparacao/": (url) => (url.includes("feminicidio") ? comparacaoCurta : comparacaoMvi),
     "/ranking/": rankingMvi,
+    "/malhas/ufs.json": malha,
   };
 }
 

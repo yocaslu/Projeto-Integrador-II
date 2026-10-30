@@ -1,5 +1,5 @@
 // Tela principal: filtros, cartões de taxa, variação e posição, gráfico de evolução e ranking.
-// O mapa (RF06) entra depois, reaproveitando os dados do ranking.
+// O mapa (RF06) reaproveita os dados do ranking, sem requisição extra à API.
 import { useState } from "react";
 import {
   buscarComparacao,
@@ -11,6 +11,7 @@ import CartoesResumo from "../componentes/cartoes/CartoesResumo.jsx";
 import Filtros from "../componentes/filtros/Filtros.jsx";
 import GraficoEvolucao from "../componentes/graficos/GraficoEvolucao.jsx";
 import GraficoRanking from "../componentes/ranking/GraficoRanking.jsx";
+import MapaUfs from "../componentes/mapa/MapaUfs.jsx";
 import useConsulta from "../hooks/useConsulta.js";
 import { achatarIndicadores } from "../utils/indicadores.js";
 
@@ -84,12 +85,27 @@ export default function Painel() {
       )}
 
       <div className="painel__graficos" aria-busy={comparacao.carregando || ranking.carregando}>
-        <section className="painel__bloco" aria-labelledby="titulo-evolucao">
-          <h3 id="titulo-evolucao">Evolução ao longo dos anos</h3>
-          <Estado consulta={comparacao}>
-            {(dados) => <GraficoEvolucao comparacao={dados} />}
-          </Estado>
-        </section>
+        <div className="painel__coluna">
+          <section className="painel__bloco" aria-labelledby="titulo-evolucao">
+            <h3 id="titulo-evolucao">Evolução ao longo dos anos</h3>
+            <Estado consulta={comparacao}>
+              {(dados) => <GraficoEvolucao comparacao={dados} />}
+            </Estado>
+          </section>
+
+          <section className="painel__bloco" aria-labelledby="titulo-mapa">
+            <h3 id="titulo-mapa">Mapa por unidade da federação</h3>
+            <Estado consulta={ranking}>
+              {(dados) => (
+                <MapaUfs
+                  ranking={dados}
+                  ufSelecionada={filtros.uf}
+                  aoSelecionarUf={(uf) => mudarFiltros({ uf })}
+                />
+              )}
+            </Estado>
+          </section>
+        </div>
 
         <section className="painel__bloco" aria-labelledby="titulo-ranking">
           <h3 id="titulo-ranking">Comparação entre estados</h3>

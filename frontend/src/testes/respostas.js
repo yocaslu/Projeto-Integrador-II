@@ -133,3 +133,17 @@ export function simularApi(respostas) {
   });
   return chamadas;
 }
+
+function quadrado(lng, lat) {
+  return [[[lng, lat], [lng + 1, lat], [lng + 1, lat + 1], [lng, lat + 1], [lng, lat]]];
+}
+
+// Malha reduzida no formato da API do IBGE: uma feição por UF, com o código em codarea.
+export const malha = {
+  type: "FeatureCollection",
+  features: [
+    { type: "Feature", properties: { codarea: "12" }, geometry: { type: "Polygon", coordinates: quadrado(-70, -10) } },
+    { type: "Feature", properties: { codarea: "29" }, geometry: { type: "Polygon", coordinates: quadrado(-42, -13) } },
+    { type: "Feature", properties: { codarea: "35" }, geometry: { type: "Polygon", coordinates: quadrado(-48, -23) } },
+  ],
+};

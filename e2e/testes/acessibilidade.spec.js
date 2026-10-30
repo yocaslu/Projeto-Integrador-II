@@ -9,6 +9,7 @@ async function abrirPainel(page) {
   await expect(page.getByText("Posição entre as UFs")).toBeVisible();
   await expect(page.locator(".recharts-line").first()).toBeVisible();
   await expect(page.locator(".recharts-bar-rectangle").first()).toBeVisible();
+  await expect(page.locator(".mapa path.leaflet-interactive")).toHaveCount(27);
 }
 
 // RNF01: a interface deve atender à WCAG 2.1 nível AA.
@@ -41,6 +42,19 @@ test("os filtros atualizam os cartões e os gráficos", async ({ page }) => {
 
   await page.locator("#filtro-ano").selectOption("2024");
   await expect(page.getByRole("heading", { name: "Bahia em 2024" })).toBeVisible();
+});
+
+// RF06: o mapa usa os dados do ranking e seleciona a UF clicada.
+test("clicar em uma UF no mapa troca a UF selecionada", async ({ page }) => {
+  await abrirPainel(page);
+  await expect(page.locator("#filtro-uf")).toHaveValue("SP");
+
+  // A UF selecionada é a única com borda laranja.
+  await expect(page.locator('.mapa path[stroke="#b35c00"]')).toHaveCount(1);
+  const outra = page.locator('.mapa path.leaflet-interactive:not([stroke="#b35c00"])').first();
+  await outra.click({ force: true });
+  await expect(page.locator("#filtro-uf")).not.toHaveValue("SP");
+  await expect(page.locator('.mapa path[stroke="#b35c00"]')).toHaveCount(1);
 });
 
 test("o rodapé indica as fontes dos dados", async ({ page }) => {
