@@ -180,6 +180,10 @@ O catálogo completo, com ids fixos, está na seção 4.5.
   o recorte muda entre os dois anos: o total publicado soma só as UFs que informaram (a
   `observacao` diz quais faltam), e a diferença mediria a troca de UFs. "-" conta como informado;
   "..." não. Não vale para UFs nem para totais sem recorte (ADR 0009).
+- Na base 100 mil mulheres, `taxa_pct` de 2023 é `null`: a taxa publicada de 2022 usa o Censo, e a de
+  2023, as Projeções. `valor_pct` não muda (ADR 0012).
+- A variação pode comparar anos de edições diferentes do Anuário. Quando a edição mais recente revisa
+  um valor, a `observacao` traz o número da edição anterior (ADR 0012).
 
 **Participação** — sempre presente. Substitui as proporções publicadas pelo FBSP (T09 e T21),
 que não são importadas (ADR 0004).
@@ -200,7 +204,7 @@ que não são importadas (ADR 0004).
   ocorrências, já que a MVI só existe em vítimas).
 - **Não some participações**: os subtipos não fecham 100% (o total de roubo é menor que a soma
   dos subtipos; uma ocorrência pode estar em mais de um subtipo).
-- Calculada no SQL por subconsulta, em precisão total, como a variação; arredondada só na
+- Calculada no SQL por subconsulta, em precisão total, como a variação (mesma localidade, ano e unidade, ainda que as linhas venham de edições diferentes do Anuário); arredondada só na
   serialização.
 
 ---

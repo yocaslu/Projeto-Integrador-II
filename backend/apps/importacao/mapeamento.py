@@ -11,7 +11,7 @@ uma coluna órfã aborta a importação. Cada (indicador, localidade, recorte, u
 única tabela dona; T01 e T09 só alimentam o relatório (conferencia=True).
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from apps.registros.escolhas import Unidade
 
@@ -20,7 +20,7 @@ ANCORA_REGIOES = r"^\s*Brasil, Regi[õo]es e Unidades da Federa[çc][ãa]o\s*$"
 # Fechadas com \s*$: a linha 3 (abrangência) começa com o mesmo texto e vem antes da âncora.
 
 GRUPOS = {
-    r"^ns\.? absolutos|^n[úu]mero absoluto": "valor",
+    r"^ns\.? abs|^n[úu]mero absoluto": "valor",
     r"^taxas?\b": "taxa",
     r"^varia[çc][ãa]o": "variacao",
     r"^em percentual|^propor[çc][ãa]o": "proporcao",  # só conferência (T09, T21)
@@ -55,6 +55,7 @@ class Tabela:
     localidades_esperadas: int  # 28 (Brasil e UFs) ou 33 (com as regiões)
     ignorar: tuple[str, ...] = ()  # colunas com cabeçalho que não são lidas
     conferencia: bool = False  # True = só alimenta o relatório
+    coluna_rotulo: int = 1  # 2 = UFs na coluna B, com os grupos de qualidade na A (edição de 2024)
 
     def blocos_gravados(self) -> tuple[Bloco, ...]:
         """Blocos que geram registros: os que têm coluna de valor."""
@@ -234,6 +235,106 @@ TABELAS: tuple[Tabela, ...] = (
         conferencia=True,
     ),
 )
+
+
+@dataclass(frozen=True)
+class Edicao:
+    """Edição anterior do Anuário: dá os anos que a edição atual não traz (ADR 0012)."""
+
+    ano: int
+    arquivo: str
+    tabelas: tuple[Tabela, ...]
+    denominador_proprio: bool = False  # True = taxas sobre outra população, não a de POPULACAO
+
+
+def _tabelas_da_edicao(
+    abas: dict[str, str],
+    anos: tuple[int, ...],
+    na_coluna_b: frozenset[str] = frozenset(),
+    blocos: dict[str, tuple[Bloco, ...]] | None = None,
+) -> tuple[Tabela, ...]:
+    """As tabelas atuais com as abas da edição; só as de `abas` (sem as séries de MVI)."""
+    blocos = blocos or {}
+    return tuple(
+        replace(
+            tabela,
+            aba=abas[tabela.aba],
+            anos=anos,
+            coluna_rotulo=2 if abas[tabela.aba] in na_coluna_b else 1,
+            blocos=blocos.get(tabela.aba, tabela.blocos),
+        )
+        for tabela in TABELAS
+        if tabela.aba in abas
+    )
+
+
+EDICOES_ANTERIORES: tuple[Edicao, ...] = (
+    Edicao(
+        2025,
+        "anuario-2025.xlsx",
+        _tabelas_da_edicao(
+            {
+                "T03": "T03",
+                "T04": "T04",
+                "T05": "T05",
+                "T08": "T09",
+                "T09": "T10",
+                "T11": "T12",
+                "T12": "T13",
+                "T14": "T16",
+                "T15": "T17",
+                "T21": "T24",
+            },
+            (2023, 2024),
+        ),
+    ),
+    Edicao(
+        2024,
+        "anuario-2024.xlsx",
+        _tabelas_da_edicao(
+            {
+                "T03": "T04",
+                "T04": "T05",
+                "T05": "T06",
+                "T08": "T10",
+                "T09": "T11",
+                "T11": "T13",
+                "T12": "T14",
+                "T14": "T16",
+                "T15": "T17",
+                "T21": "T23",
+            },
+            (2022, 2023),
+            na_coluna_b=frozenset({"T04", "T05", "T06", "T10", "T11"}),
+            blocos={
+                "T09": (
+                    Bloco("mvi", (r"^Mortes Violentas Intencionais",), grupos=SO_VALOR),
+                    Bloco(
+                        "morte-intervencao-policial",
+                        (r"^Morte Decorrente de Interven[çc][õo]es Policiais",),
+                        grupos=SO_VALOR,
+                    ),
+                    Bloco(
+                        "morte-intervencao-policial",
+                        (r"^Propor[çc][ãa]o de MDIP",),
+                        grupos=frozenset({"proporcao"}),
+                    ),
+                ),
+                "T21": (
+                    Bloco("homicidio-mulheres", (r"^Homic[íi]dios$",)),
+                    Bloco("feminicidio", (r"^Feminic[íi]dios$",)),
+                    Bloco(
+                        "feminicidio",
+                        (r"^Propor[çc][ãa]o de feminic[íi]dios",),
+                        grupos=frozenset({"proporcao"}),
+                    ),
+                ),
+            },
+        ),
+        denominador_proprio=True,  # Censo 2022, nos dois anos
+    ),
+)
+"""Da mais recente para a mais antiga: é a ordem em que escolhem os anos que faltam."""
 
 REGIOES_CALCULADAS = 5
 """Regiões somadas por (indicador, recorte, unidade, ano) nas tabelas sem totais regionais."""

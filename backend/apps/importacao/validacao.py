@@ -14,7 +14,7 @@ absoluta de 1e-6 (ADR 0004). As taxas do FBSP batem com o cálculo pela populaç
 import csv
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
@@ -103,6 +103,21 @@ class Relatorio:
 
     def adicionar(self, apontamento: Apontamento) -> None:
         self.apontamentos.append(apontamento)
+
+    def incorporar(self, outro: Relatorio, rotulo: str) -> None:
+        """Junta o relatório de uma edição anterior, com o arquivo na verificação e na tabela."""
+        for item in outro.apontamentos:
+            if item.verificacao == "ibge_marca_de_nota":  # já está no relatório da edição atual
+                continue
+            self.adicionar(
+                replace(
+                    item,
+                    verificacao=f"{rotulo}:{item.verificacao}",
+                    tabela=f"{rotulo}:{item.tabela}",
+                )
+            )
+        for verificacao, total in outro.conferidos.items():
+            self.conferidos[f"{rotulo}:{verificacao}"] += total
 
     def de(self, severidade: Severidade) -> list[Apontamento]:
         return [a for a in self.apontamentos if a.severidade is severidade]
@@ -204,8 +219,15 @@ def gerar(
     populacoes: Iterable[PopulacaoLida],
     base_taxa: Mapping[str, str | None],
     indicador_pai: Mapping[str, str | None],
+    *,
+    denominador_proprio: bool = False,
 ) -> Relatorio:
-    """Monta o relatório; não grava nada. Os órfãos entram depois, com `adicionar_orfaos`."""
+    """Monta o relatório; não grava nada. Os órfãos entram depois, com `adicionar_orfaos`.
+
+    `denominador_proprio`: as taxas da edição usam outra população (edição de 2024: Censo 2022). A
+    diferença para POPULACAO vira informação, e a variação publicada é conferida com as próprias
+    taxas publicadas.
+    """
     tabelas = list(tabelas)
     populacoes = list(populacoes)
     populacao = {
@@ -214,7 +236,11 @@ def gerar(
     calculos = Calculos(linhas, populacao, base_taxa)
     relatorio = Relatorio()
 
-    _taxas(relatorio, linhas, calculos)
+    if denominador_proprio:
+        _taxas(relatorio, linhas, calculos, Severidade.INFORMACAO)
+        calculos = Calculos(linhas, {}, base_taxa)
+    else:
+        _taxas(relatorio, linhas, calculos)
     for tabela in tabelas:
         for publicado in tabela.publicados:
             _conferir_publicado(relatorio, publicado, tabela, calculos, indicador_pai)
@@ -227,7 +253,12 @@ def gerar(
     return relatorio
 
 
-def _taxas(relatorio: Relatorio, linhas: list[Linha], calculos: Calculos) -> None:
+def _taxas(
+    relatorio: Relatorio,
+    linhas: list[Linha],
+    calculos: Calculos,
+    severidade: Severidade | None = None,
+) -> None:
     """Taxa calculada pela população do IBGE × taxa publicada (vítimas e ocorrências)."""
     for linha in linhas:
         chave = linha.chave
@@ -245,7 +276,7 @@ def _taxas(relatorio: Relatorio, linhas: list[Linha], calculos: Calculos) -> Non
             relatorio.adicionar(
                 Apontamento(
                     "taxa_calculada_x_publicada",
-                    Severidade.DIVERGENCIA,
+                    severidade or Severidade.DIVERGENCIA,
                     _tabela(linha.origem),
                     linha.origem_taxa or linha.origem,
                     chave,

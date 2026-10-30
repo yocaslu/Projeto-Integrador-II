@@ -154,7 +154,7 @@ variação e participação (ADR 0008).
 
 | Entidade | Linhas |
 | :--- | ---: |
-| REGISTROS_ANUAIS | 1.980 (1.750 lidos + 230 regionais calculados, 24 deles não disponíveis) |
+| REGISTROS_ANUAIS | 3.498 (3.038 lidos + 460 regionais calculados, 59 deles não disponíveis) |
 | POPULACAO | 462 |
 | INDICADORES | 18 |
 | REGIOES + ESTADOS | 6 + 27 |

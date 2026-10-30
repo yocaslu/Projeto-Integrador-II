@@ -14,12 +14,12 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.catalogo import referencia as ref_catalogo
-from apps.importacao import gravacao, validacao
+from apps.importacao import edicoes, gravacao, validacao
 from apps.importacao.agregacao import ErroAgregacao, agregar
 from apps.importacao.erros import ErroImportacao
 from apps.importacao.leitores import fbsp, ibge
-from apps.importacao.linhas import Linha
-from apps.importacao.mapeamento import TABELAS, Tabela, contagem_esperada
+from apps.importacao.linhas import Linha, Metodo
+from apps.importacao.mapeamento import EDICOES_ANTERIORES, TABELAS, Tabela, contagem_esperada
 from apps.importacao.models import Carga
 from apps.localidades.referencia import REGIAO_DA_UF
 
@@ -75,6 +75,32 @@ def _planilhas_do_anuario(arquivos: list[Arquivo]) -> list[Arquivo]:
     return [a for a in arquivos if a.nome.endswith(".xlsx") and not _e_projecao(a)]
 
 
+def _edicao_atual(arquivos: list[Arquivo]) -> list[Arquivo]:
+    anteriores = {edicao.arquivo for edicao in EDICOES_ANTERIORES}
+    return [a for a in _planilhas_do_anuario(arquivos) if a.nome not in anteriores]
+
+
+def _ler_edicao(
+    caminho: Path,
+    tabelas: tuple[Tabela, ...],
+    unidade_padrao,
+    base_taxa,
+) -> tuple[list, list[Linha], list[Linha]]:
+    """Lê as tabelas de uma planilha e agrega as regiões; confere chaves e contagem da edição."""
+    wb = fbsp.abrir(caminho)
+    lidas = [fbsp.ler_tabela(wb, t, unidade_padrao, base_taxa) for t in tabelas]
+    linhas = [linha for lida in lidas for linha in lida.linhas]
+    calculadas = agregar(linhas, REGIAO_DA_UF)
+    verificar_chaves_unicas(linhas + calculadas)
+    esperados = contagem_esperada(tabelas)
+    if (len(linhas), len(calculadas)) != esperados:
+        raise ErroImportacao(
+            f"{caminho.name}: {len(linhas)} registros lidos e {len(calculadas)} calculados; "
+            f"esperados {esperados[0]} e {esperados[1]}."
+        )
+    return lidas, linhas + calculadas, calculadas
+
+
 def verificar_arquivos(dados: Path, manifesto: Path) -> list[Arquivo]:
     """Todo arquivo do manifesto precisa existir em `dados` com o mesmo SHA-256 (regra 1)."""
     arquivos = []
@@ -89,9 +115,7 @@ def verificar_arquivos(dados: Path, manifesto: Path) -> list[Arquivo]:
                 "planilha exige novo arquivo e novo hash em dados/README.md."
             )
         arquivos.append(Arquivo(nome, caminho, obtido))
-    if len(_planilhas_do_anuario(arquivos)) != 1 or not any(
-        a.nome.endswith(".ods") for a in arquivos
-    ):
+    if len(_edicao_atual(arquivos)) != 1 or not any(a.nome.endswith(".ods") for a in arquivos):
         raise ErroImportacao("O manifesto precisa listar uma planilha .xlsx e as .ods do IBGE.")
     return arquivos
 
@@ -147,25 +171,38 @@ def importar(
                 raise ErroImportacao(f"População do IBGE repetida para o mesmo ano: {anos}")
             total_populacao = gravacao.gravar_populacao(populacoes, refs)
 
-            planilha = _planilhas_do_anuario(arquivos)[0]
-            wb = fbsp.abrir(planilha.caminho)
-            lidas = [fbsp.ler_tabela(wb, t, unidade_padrao, base_taxa) for t in tabelas]
-            linhas = [linha for lida in lidas for linha in lida.linhas]
-            calculadas = agregar(linhas, REGIAO_DA_UF)
-            linhas += calculadas
-            verificar_chaves_unicas(linhas)
-
-            esperados_lidos, esperados_calculados = contagem_esperada(tabelas)
-            if (len(linhas) - len(calculadas), len(calculadas)) != (
-                esperados_lidos,
-                esperados_calculados,
-            ):
-                raise ErroImportacao(
-                    f"{len(linhas) - len(calculadas)} registros lidos e {len(calculadas)} "
-                    f"calculados; esperados {esperados_lidos} e {esperados_calculados}."
-                )
-
+            planilha = _edicao_atual(arquivos)[0]
+            lidas, linhas, calculadas = _ler_edicao(
+                planilha.caminho, tabelas, unidade_padrao, base_taxa
+            )
             relatorio_gerado = validacao.gerar(linhas, lidas, populacoes, base_taxa, indicador_pai)
+
+            caminhos = {a.nome: a.caminho for a in arquivos}
+            for edicao in EDICOES_ANTERIORES:
+                if edicao.arquivo not in caminhos:
+                    continue
+                lidas_edicao, linhas_edicao, _ = _ler_edicao(
+                    caminhos[edicao.arquivo], edicao.tabelas, unidade_padrao, base_taxa
+                )
+                relatorio_gerado.incorporar(
+                    validacao.gerar(
+                        linhas_edicao + edicoes.mvi_da_conferencia(lidas_edicao),
+                        lidas_edicao,
+                        populacoes,
+                        base_taxa,
+                        indicador_pai,
+                        denominador_proprio=edicao.denominador_proprio,
+                    ),
+                    edicao.arquivo,
+                )
+                linhas, revisoes = edicoes.incorporar(
+                    linhas, linhas_edicao, edicao.ano, edicao.arquivo
+                )
+                for revisao in revisoes:
+                    relatorio_gerado.adicionar(revisao)
+            verificar_chaves_unicas(linhas)
+            calculadas = [linha for linha in linhas if linha.metodo is Metodo.SOMA_UFS]
+
             if somente_validar:
                 transaction.set_rollback(True)
             else:

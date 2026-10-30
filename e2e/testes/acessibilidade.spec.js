@@ -45,12 +45,12 @@ test("os filtros atualizam os cartões e os gráficos", async ({ page }) => {
   await page.locator("#filtro-uf").selectOption("BA");
   await expect(page.getByRole("heading", { name: "Bahia em 2025" })).toBeVisible();
   await expect(page.locator("#legenda-evolucao")).toContainText(
-    "Taxa por 100 mil mulheres, 2024 a 2025: Bahia, Nordeste e Brasil",
+    "Taxa por 100 mil mulheres, 2022 a 2025: Bahia, Nordeste e Brasil",
   );
   await expect(page.locator("#legenda-ranking")).toContainText("100 mil mulheres");
 
-  await page.locator("#filtro-ano").selectOption("2024");
-  await expect(page.getByRole("heading", { name: "Bahia em 2024" })).toBeVisible();
+  await page.locator("#filtro-ano").selectOption("2022");
+  await expect(page.getByRole("heading", { name: "Bahia em 2022" })).toBeVisible();
 });
 
 // RF06: o mapa usa os dados do ranking e seleciona a UF clicada.
