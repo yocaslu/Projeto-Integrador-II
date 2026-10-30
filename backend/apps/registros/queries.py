@@ -60,6 +60,7 @@ CEM_MIL = Value(Decimal(100_000), output_field=DECIMAL)
 NULO_DECIMAL = Value(None, output_field=DECIMAL)
 NULO_TEXTO = Value(None, output_field=CharField())
 
+ANO_COM_QUEBRA_NA_BASE_DE_MULHERES = 2023
 TAXA_CALCULADA = "calculada"
 TAXA_PUBLICADA = "publicada"
 PARTICIPACAO_NO_PAI = "indicador_pai"
@@ -256,7 +257,16 @@ def anotar_registros(registros: QuerySet | None = None) -> QuerySet:
     no_pai = Q(recorte__isnull=True, _pai_com_registros=True)
     registros = registros.annotate(
         variacao_valor_pct=_sem_ufs_trocadas(_variacao(F("valor"), F("_valor_anterior"))),
-        variacao_taxa_pct=_sem_ufs_trocadas(_variacao(F("taxa"), F("_taxa_anterior"))),
+        variacao_taxa_pct=Case(
+            # A taxa publicada de 2022 usa o Censo, e a de 2023 as Projeções (ADR 0012).
+            When(
+                ano=ANO_COM_QUEBRA_NA_BASE_DE_MULHERES,
+                indicador__base_taxa=BaseTaxa.MULHERES,
+                then=NULO_DECIMAL,
+            ),
+            default=_sem_ufs_trocadas(_variacao(F("taxa"), F("_taxa_anterior"))),
+            output_field=DECIMAL,
+        ),
         participacao_tipo=Case(
             When(com_recorte, then=Value(PARTICIPACAO_NO_TOTAL)),
             When(no_pai, then=Value(PARTICIPACAO_NO_PAI)),

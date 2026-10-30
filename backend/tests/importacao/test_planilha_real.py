@@ -30,11 +30,30 @@ def test_toda_ancora_fica_na_linha_5():
 def test_carga_completa(tmp_path):
     resultado = importar(DADOS / "brutos", tmp_path, DADOS / "README.md")
 
-    assert (resultado.registros, resultado.calculados, resultado.populacao) == (1980, 230, 462)
+    assert (resultado.registros, resultado.calculados, resultado.populacao) == (3498, 460, 462)
     assert not resultado.relatorio.tem_divergencias
     assert resultado.relatorio.conferidos["taxa_calculada_x_publicada"] == 1246
+    # A dona de cada ano (ADR 0012): 2022 da edição de 2024, 2023 da de 2025, 2024 da de 2026.
+    registro = RegistroAnual.objects.filter(estado__sigla="SP", indicador__slug="latrocinio")
+    registro = registro.filter(unidade="vitimas", recorte__isnull=True)
+    origens = {r.ano: r.origem.split("!")[0] for r in registro}
+    assert origens == {
+        2022: "anuario-2024.xlsx:T05",
+        2023: "anuario-2025.xlsx:T04",
+        2024: "T04",
+        2025: "T04",
+    }
+    # "..." na edição dona continua "...", com o número da edição anterior na observação.
+    bahia = RegistroAnual.objects.get(
+        estado__sigla="BA",
+        indicador__slug="morte-intervencao-policial",
+        recorte__chave__contains="Polícia Militar;situacao_policial=Em serviço",
+        ano=2024,
+    )
+    assert bahia.valor is None
+    assert "edição de 2025 do Anuário publicou 1496" in bahia.observacao
     regionais = Counter(
         RegistroAnual.objects.filter(metodo=Metodo.SOMA_UFS).values_list("situacao", flat=True)
     )
-    assert regionais[Situacao.NAO_DISPONIVEL] == 24
-    assert sum(regionais.values()) == 230
+    assert regionais[Situacao.NAO_DISPONIVEL] == 59
+    assert sum(regionais.values()) == 460

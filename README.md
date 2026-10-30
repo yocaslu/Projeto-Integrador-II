@@ -11,14 +11,14 @@ Projeto Integrador II.
 
 | Parte | Estado |
 | --- | --- |
-| Banco de dados e importação das planilhas | Pronto: 1.980 registros e 462 populações, sem divergência acima de 1e-6 no relatório de validação |
+| Banco de dados e importação das planilhas | Pronto: 3.498 registros e 462 populações, sem divergência acima de 1e-6 no relatório de validação |
 | API REST v1 (`/api/v1/`) | Pronta: todos os recursos do contrato, com CSV, cache e documentação OpenAPI |
 | Dashboard (React) e testes de ponta a ponta | Pronto: filtros, cartões, evolução, ranking, mapa e CSV, com testes de acessibilidade |
 
 Indicadores: Mortes Violentas Intencionais (MVI) e seus componentes, letalidade policial (por
 corporação e situação do policial), feminicídio, roubo (total e subtipos) e furto (veículos e
-celulares; o Anuário não publica total de furtos), de 2024 e 2025 para as 27 UFs, as cinco regiões
-e o Brasil, e a série histórica de MVI desde 2012.
+celulares; o Anuário não publica total de furtos), de 2022 a 2025 para as 27 UFs, as cinco regiões
+e o Brasil, e a série histórica de MVI desde 2012. Os dados vêm das edições de 2024 a 2026 do Anuário.
 
 ## Ambiente de desenvolvimento
 

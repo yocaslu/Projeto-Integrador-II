@@ -104,10 +104,10 @@ def separar_marcas(rotulo: object) -> tuple[str, list[str]]:
     return MARCA.sub("", bruto).strip(), MARCA.findall(bruto)
 
 
-def achar_ancora(grade: Grade, regex: str, aba: str) -> int:
-    """1ª linha cuja coluna A casa a regex inteira (^…$)."""
+def achar_ancora(grade: Grade, regex: str, aba: str, coluna: int = 1) -> int:
+    """1ª linha cuja coluna de rótulos (A, ou B na edição de 2024) casa a regex inteira (^…$)."""
     for linha in range(1, min(grade.max_row, LINHAS_PROCURA_ANCORA) + 1):
-        valor = grade.ws.cell(linha, 1).value
+        valor = grade.ws.cell(linha, coluna).value
         if valor is not None and re.match(regex, str(valor)):
             return linha
     raise ErroImportacao(f"{aba}: âncora não encontrada ({regex}).")
@@ -134,10 +134,12 @@ def ler_notas(grade: Grade, linha_fonte: int) -> dict[str, str]:
     return notas
 
 
-def caminhos(grade: Grade, linha_ancora: int, niveis: int) -> dict[int, tuple[str, ...]]:
-    """Caminho de cabeçalho de cada coluna com cabeçalho (coluna B em diante)."""
+def caminhos(
+    grade: Grade, linha_ancora: int, niveis: int, coluna_rotulo: int = 1
+) -> dict[int, tuple[str, ...]]:
+    """Caminho de cabeçalho de cada coluna com cabeçalho (depois da coluna de rótulos)."""
     resultado = {}
-    for coluna in range(2, grade.max_col + 1):
+    for coluna in range(coluna_rotulo + 1, grade.max_col + 1):
         caminho = tuple(
             texto(grade.valor(linha, coluna))
             for linha in range(linha_ancora, linha_ancora + niveis)
@@ -194,7 +196,8 @@ def resolver_colunas(
 ) -> dict[int, Coluna]:
     """Bloco, grupo, ano e marcas de cada coluna. Coluna órfã ou ambígua aborta a importação."""
     colunas: dict[int, Coluna] = {}
-    for coluna, caminho in caminhos(grade, linha_ancora, tabela.linhas_cabecalho).items():
+    colunas_lidas = caminhos(grade, linha_ancora, tabela.linhas_cabecalho, tabela.coluna_rotulo)
+    for coluna, caminho in colunas_lidas.items():
         local = f"{tabela.aba}!{get_column_letter(coluna)}{linha_ancora}"
         blocos = [b for b in tabela.blocos if _casa_caminho(b.caminho, caminho)]
         if not blocos:
@@ -258,7 +261,7 @@ def ler_tabela(
     if tabela.aba not in wb.sheetnames:
         raise ErroImportacao(f"Aba {tabela.aba} não encontrada na planilha.")
     grade = Grade(wb[tabela.aba])
-    linha_ancora = achar_ancora(grade, tabela.ancora, tabela.aba)
+    linha_ancora = achar_ancora(grade, tabela.ancora, tabela.aba, tabela.coluna_rotulo)
     linha_fonte = achar_fonte(grade, linha_ancora + tabela.linhas_cabecalho, tabela.aba)
     notas = ler_notas(grade, linha_fonte)
     colunas = resolver_colunas(grade, linha_ancora, tabela, notas, base_taxa)
@@ -268,7 +271,10 @@ def ler_tabela(
     localidades: set[Localidade] = set()
 
     for r in range(linha_ancora + tabela.linhas_cabecalho, linha_fonte):
-        rotulo = grade.ws.cell(r, 1).value
+        rotulo = grade.ws.cell(r, tabela.coluna_rotulo).value
+        if rotulo is None or texto(rotulo) == "":
+            # Na edição de 2024, a linha do Brasil tem o rótulo na coluna A, mesclada com a B.
+            rotulo = grade.ws.cell(r, 1).value
         if rotulo is None or texto(rotulo) == "":
             continue  # a T02 tem linhas em branco entre as regiões
         nome, marcas_linha = separar_marcas(rotulo)
