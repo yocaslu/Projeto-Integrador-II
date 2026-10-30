@@ -9,11 +9,15 @@ import { classificar, COR_SEM_DADO, corDoValor, limitesDaMalha } from "../../uti
 import { CORES } from "../../utils/cores.js";
 
 export const URL_MALHA = "/malhas/ufs.json";
+const OPACIDADE_FORA_DA_REGIAO = 0.2;
 
 async function buscarMalha({ signal } = {}) {
   const resposta = await fetch(URL_MALHA, { signal });
   if (!resposta.ok) throw new Error(`malha das UFs não encontrada (${resposta.status})`);
-  return resposta.json();
+  // Sem o arquivo, o Vite e o nginx devolvem o index.html com status 200.
+  return resposta.json().catch(() => {
+    throw new Error("malha das UFs não encontrada");
+  });
 }
 
 export function Legenda({ classes, temSemDado }) {
@@ -39,7 +43,7 @@ export function Legenda({ classes, temSemDado }) {
   );
 }
 
-export default function MapaUfs({ ranking, ufSelecionada, aoSelecionarUf }) {
+export default function MapaUfs({ ranking, siglasDaRegiao, regiao, ufSelecionada, aoSelecionarUf }) {
   const malha = useConsulta((opcoes) => buscarMalha(opcoes), []);
   const { indicador, ano, results } = ranking;
 
@@ -51,9 +55,10 @@ export default function MapaUfs({ ranking, ufSelecionada, aoSelecionarUf }) {
   function estilo(feicao) {
     const item = porCodigo.get(feicao.properties.codarea);
     const selecionada = item?.localidade.codigo === ufSelecionada;
+    const foraDaRegiao = siglasDaRegiao && !siglasDaRegiao.has(item?.localidade.codigo);
     return {
       fillColor: corDoValor(item?.taxa?.valor ?? null, classes),
-      fillOpacity: 1,
+      fillOpacity: foraDaRegiao ? OPACIDADE_FORA_DA_REGIAO : 1,
       color: selecionada ? CORES.regiao : CORES.brasil,
       weight: selecionada ? 3 : 0.75,
     };
@@ -90,7 +95,7 @@ export default function MapaUfs({ ranking, ufSelecionada, aoSelecionarUf }) {
           <GeoJSON
             // O GeoJSON do react-leaflet não reaplica estilo nem eventos quando os dados
             // mudam; a chave recria a camada a cada indicador, ano ou UF selecionada.
-            key={`${indicador.slug}-${ano}-${ufSelecionada}`}
+            key={`${indicador.slug}-${ano}-${ufSelecionada}-${regiao}`}
             data={malha.dados}
             style={estilo}
             onEachFeature={aoCriarUf}
@@ -103,6 +108,7 @@ export default function MapaUfs({ ranking, ufSelecionada, aoSelecionarUf }) {
         Cores mais escuras indicam taxas mais altas; cada cor reúne cerca de um quinto das UFs.
         A UF selecionada tem borda laranja. Clique em uma UF para selecioná-la. Os mesmos valores
         estão no ranking e na sua tabela.
+        {siglasDaRegiao && " As UFs fora da região escolhida ficam esmaecidas."}
       </p>
       <p className="fonte">
         Fonte: FBSP, Anuário Brasileiro de Segurança Pública 2026; malha das UFs: IBGE, API de

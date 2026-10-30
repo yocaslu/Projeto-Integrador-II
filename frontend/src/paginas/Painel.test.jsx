@@ -8,7 +8,7 @@ import {
   rankingMvi,
   simularApi,
 } from "../testes/respostas.js";
-import Painel from "./Painel.jsx";
+import Painel, { aplicarMudanca } from "./Painel.jsx";
 
 function respostasPadrao() {
   return {
@@ -60,6 +60,36 @@ test("trocar o indicador refaz as consultas e volta ao último ano", async () =>
     expect(chamadas).toContain("/api/v1/ranking/?indicador=feminicidio&ano=2025");
   });
   expect(await screen.findByText(/dados de 2024 e 2025/)).toBeInTheDocument();
+});
+
+test("a região restringe as UFs e o ranking e leva a uma UF dela", async () => {
+  const chamadas = simularApi(respostasPadrao());
+  render(<Painel />);
+  await screen.findByRole("heading", { name: "São Paulo em 2025" });
+
+  fireEvent.change(screen.getByLabelText("Região"), { target: { value: "NE" } });
+
+  const ufs = within(screen.getByLabelText("Unidade da federação"));
+  expect(ufs.getByRole("option", { name: /Bahia/ })).toBeInTheDocument();
+  expect(ufs.queryByRole("option", { name: /São Paulo/ })).not.toBeInTheDocument();
+  expect(screen.getByLabelText("Unidade da federação")).toHaveValue("BA");
+  expect(screen.getByText(/Mostrando as UFs da região Nordeste/)).toBeInTheDocument();
+  await waitFor(() => expect(chamadas).toContain("/api/v1/comparacao/?uf=BA&indicador=mvi"));
+});
+
+test("escolher uma UF fora da região limpa a região", () => {
+  const atuais = { indicador: "mvi", regiao: "NE", uf: "BA", ano: null };
+  expect(aplicarMudanca(atuais, { uf: "SP" }, estados)).toMatchObject({ regiao: "", uf: "SP" });
+  expect(aplicarMudanca(atuais, { uf: "BA" }, estados)).toMatchObject({ regiao: "NE", uf: "BA" });
+  expect(aplicarMudanca(atuais, { regiao: "" }, estados)).toMatchObject({ regiao: "", uf: "BA" });
+});
+
+test("sem metadados, o ranking mostra o erro em vez de carregar para sempre", async () => {
+  simularApi({ ...respostasPadrao(), "/metadados/": null });
+  render(<Painel />);
+
+  expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
+  expect(screen.queryByText("Carregando…")).not.toBeInTheDocument();
 });
 
 test("mostra o erro da API sem quebrar a página", async () => {

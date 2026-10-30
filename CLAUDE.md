@@ -16,9 +16,8 @@ Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qua
 
 **A fase do backend está concluída**: modelos, importação da planilha, API `/api/v1/` com todos os recursos do contrato (inclusive CSV e cache), esquema OpenAPI e teste de desempenho do RNF02. Mudanças no backend seguem as regras abaixo. **A fase atual é o frontend.**
 
-- Feito no frontend: filtros (indicador, UF, ano do ranking), cartões da UF (taxa, variação, posição, número absoluto), gráfico de evolução UF × região × Brasil (`/comparacao/`), comparação entre estados em barras (`/ranking/`), tabelas de dados acessíveis e links de CSV; testes Jest e Playwright + axe com o painel carregado.
+- Feito no frontend: filtros (indicador, região, UF, ano do ranking), cartões da UF (taxa, variação, posição, número absoluto), gráfico de evolução UF × região × Brasil (`/comparacao/`), comparação entre estados em barras (`/ranking/`), tabelas de dados acessíveis e links de CSV; testes Jest e Playwright + axe com o painel carregado.
 - Mapa por UF (RF06): Leaflet sem camada de fundo, coroplético em 5 classes por quantis, com os dados de `/ranking/` ligados à malha pelo código IBGE (`codarea`). A malha fica em `frontend/public/malhas/ufs.json`, gerada por `npm run malha` a partir da API de malhas do IBGE (`frontend/public/README.md`). No Jest, `react-leaflet` é trocado por `src/testes/reactLeafletFalso.jsx` (`moduleNameMapper`).
-- Falta no frontend: filtro por região (RF04).
 - O frontend só consome a API; nenhum cálculo de taxa, variação ou ranking é refeito no cliente.
 - Ordem de entrega (concluída): `localidades` e `catalogo` → `importacao` (comando + relatório de validação) → `registros` (consultas de taxa, variação, ranking, comparação) → `api` (endpoints, filtros, erros, CSV, cache) → documentação OpenAPI.
 - Ordem dentro da app `api` (concluída; cada passo com os testes da seção 8 do contrato que lhe cabem):

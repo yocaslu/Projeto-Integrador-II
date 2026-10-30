@@ -1,9 +1,10 @@
-// Filtros do painel (RF04): indicador, UF e ano. A UF define a série do gráfico de evolução
-// e o destaque no ranking; o ano vale para o ranking e para os cartões.
+// Filtros do painel (RF04): indicador, região, UF e ano. A UF define a série do gráfico de
+// evolução e o destaque no ranking; a região restringe as UFs da lista, do ranking e o destaque
+// do mapa; o ano vale para o ranking e para os cartões.
 
 const RECUO = "   ";
 
-export default function Filtros({ indicadores, estados, anos, valores, aoMudar }) {
+export default function Filtros({ indicadores, regioes, estados, anos, valores, aoMudar }) {
   return (
     <form className="filtros" aria-label="Filtros" onSubmit={(evento) => evento.preventDefault()}>
       <div className="campo">
@@ -21,6 +22,22 @@ export default function Filtros({ indicadores, estados, anos, valores, aoMudar }
             >
               {RECUO.repeat(indicador.nivel)}
               {indicador.nome}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="campo">
+        <label htmlFor="filtro-regiao">Região</label>
+        <select
+          id="filtro-regiao"
+          value={valores.regiao}
+          onChange={(evento) => aoMudar({ regiao: evento.target.value })}
+        >
+          <option value="">Todas as regiões</option>
+          {regioes.map((regiao) => (
+            <option key={regiao.sigla} value={regiao.sigla}>
+              {regiao.nome}
             </option>
           ))}
         </select>

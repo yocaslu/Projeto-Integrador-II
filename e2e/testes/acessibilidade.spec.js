@@ -29,6 +29,15 @@ test("as tabelas de dados abertas não têm violações WCAG 2.1 AA", async ({ p
   expect(resultado.violations).toEqual([]);
 });
 
+// RF04: a região restringe a lista de UFs e o ranking.
+test("o filtro de região restringe as UFs e o ranking", async ({ page }) => {
+  await abrirPainel(page);
+  await page.locator("#filtro-regiao").selectOption("S");
+  await expect(page.locator("#filtro-uf option")).toHaveCount(3);
+  await expect(page.locator(".recharts-bar-rectangle")).toHaveCount(3);
+  await expect(page.locator(".mapa path.leaflet-interactive")).toHaveCount(27);
+});
+
 // RF03 e RF04: os filtros mudam o gráfico de evolução e o ranking.
 test("os filtros atualizam os cartões e os gráficos", async ({ page }) => {
   await abrirPainel(page);
