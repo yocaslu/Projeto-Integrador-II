@@ -246,7 +246,7 @@ projeto-integrador-ii/
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
 │   ├── modelagem.md                   # modelagem de dados (fonte da verdade; transcrição do roteiro com os ADRs)
 │   ├── api/openapi.yaml               # esquema gerado e versionado (diff verificado no CI)
-│   └── adr/                           # 0001 a 0008 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice)
+│   └── adr/                           # 0001 a 0009 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice; 0009: variação do Brasil em recortes)
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
 
@@ -304,7 +304,7 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 **Banco e cálculos**
 10. Valores, taxas e populações usam `DecimalField` (NUMERIC). `float` é proibido em modelos, cálculos e serializers; converter célula com `Decimal(str(v))`.
 11. Taxa calculada só quando a base é 100 mil habitantes e há população do IBGE para o ano (vale para vítimas e ocorrências); nos demais casos, `taxa_publicada`.
-12. Variação e participação por **subconsulta** (ano anterior; indicador-pai ou total do indicador), nunca por função de janela, sempre na mesma unidade; nulas se faltar o termo de comparação ou se a base for zero. Nunca armazenadas.
+12. Variação e participação por **subconsulta** (ano anterior; indicador-pai ou total do indicador), nunca por função de janela, sempre na mesma unidade; nulas se faltar o termo de comparação ou se a base for zero; no Brasil com recorte, a variação também é nula quando o conjunto de UFs que informaram muda entre os dois anos (ADR 0009). Nunca armazenadas.
 13. Toda alteração de modelo vem com migração no mesmo commit. Migração já mesclada na `main` não é editada; corrige-se com outra migração.
 14. Constraints vivem no banco (`CheckConstraint(condition=...)` de localidade, `UniqueConstraint(..., nulls_distinct=False)`), não só em validação Python.
 

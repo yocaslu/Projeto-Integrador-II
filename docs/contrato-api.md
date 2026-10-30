@@ -176,6 +176,10 @@ O catálogo completo, com ids fixos, está na seção 4.5.
 - `taxa_pct` corresponde à coluna "Variação (%)" das tabelas do FBSP, que é a variação da taxa, e
   não a do valor absoluto.
 - Ficam `null` quando falta um dos anos, quando um dos valores é nulo ou quando a base é zero.
+- No Brasil, em registro com recorte, ficam `null` também quando o conjunto de UFs que informaram
+  o recorte muda entre os dois anos: o total publicado soma só as UFs que informaram (a
+  `observacao` diz quais faltam), e a diferença mediria a troca de UFs. "-" conta como informado;
+  "..." não. Não vale para UFs nem para totais sem recorte (ADR 0009).
 
 **Participação** — sempre presente. Substitui as proporções publicadas pelo FBSP (T09 e T21),
 que não são importadas (ADR 0004).

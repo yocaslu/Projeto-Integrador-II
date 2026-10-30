@@ -122,7 +122,7 @@ Só a T02 publica totais regionais. Nas demais tabelas (28 localidades: Brasil e
 | `J:K` + `L:M` | Total | sem recorte | valor + taxa |
 
 - A soma dos recortes pode não bater com o total: há "..." e mortes em operações conjuntas (nota 5, Sergipe). A comparação entra no relatório como **informação**.
-- Amapá, Pará, Bahia, Rio Grande do Norte e Rio de Janeiro trazem "..." nos quatro recortes, nos dois anos (Sergipe também, exceto em serviço de 2025). O total sem recorte está completo. O FBSP publica o Brasil desses recortes como **soma parcial** das UFs que informaram; ele é importado como está e a situação entra no relatório como informação. Norte, Nordeste e Sudeste ficam `nao_disponivel` nesses recortes (seção 4.8): 4 recortes × 2 anos × 3 regiões = 24 registros.
+- Amapá, Pará, Bahia, Rio Grande do Norte e Rio de Janeiro trazem "..." nos quatro recortes, nos dois anos (Sergipe também, exceto em serviço de 2025). O total sem recorte está completo. O FBSP publica o Brasil desses recortes como **soma parcial** das UFs que informaram; ele é importado como está e a situação entra no relatório como informação. Por isso, a variação do Brasil nesses recortes é nula quando o conjunto de UFs que informaram muda entre os dois anos (ADR 0009; contrato, seção 3). Norte, Nordeste e Sudeste ficam `nao_disponivel` nesses recortes (seção 4.8): 4 recortes × 2 anos × 3 regiões = 24 registros.
 - Gera 5 × 56 = 280 lidos + 5 × 10 = 50 regionais = **330** registros.
 
 ### T09 — Proporção de MDIP em relação às MVI (só conferência)

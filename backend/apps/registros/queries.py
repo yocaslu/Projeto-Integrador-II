@@ -12,7 +12,10 @@ deixar a variação nula por falta do ano anterior na mesma consulta.
   taxa (ex.: total regional de feminicídio, sem população feminina por região).
 - `ano_referencia`: `ano - 1`.
 - `variacao_valor_pct` e `variacao_taxa_pct`: variação em relação ao ano anterior, na mesma
-  localidade, indicador, recorte e unidade; nulas se faltar um dos lados ou se a base for zero.
+  localidade, indicador, recorte e unidade; nulas se faltar um dos lados ou se a base for zero. No
+  Brasil, em registro com recorte, também nulas quando o conjunto de UFs que informaram o recorte
+  muda entre os dois anos (ADR 0009): o total publicado soma só as UFs que informaram, e a
+  diferença viria da troca de UFs, não do fenômeno.
 - `participacao_tipo`, `participacao_indicador` e `participacao_valor_pct`: parcela no total do
   indicador (registro com recorte) ou no indicador-pai (sem recorte), na mesma localidade, ano e
   unidade; sem referência em raiz e em filho de agrupador.
@@ -28,6 +31,7 @@ from collections.abc import Iterable
 from decimal import Decimal
 
 from django.db.models import (
+    BooleanField,
     Case,
     CharField,
     DecimalField,
@@ -47,7 +51,7 @@ from django.db.models.functions import Coalesce, NullIf, Round
 
 from apps.catalogo.models import BaseTaxa
 from apps.localidades.models import Populacao, Regiao
-from apps.registros.escolhas import Unidade
+from apps.registros.escolhas import Situacao, Unidade
 from apps.registros.models import RegistroAnual
 
 DECIMAL = DecimalField()
@@ -118,6 +122,45 @@ def _do_ano_anterior() -> QuerySet:
     )
 
 
+def _conjunto_de_ufs_mudou() -> Case:
+    """Verdadeiro no Brasil com recorte quando as UFs que informaram diferem do ano anterior.
+
+    É a diferença simétrica dos dois conjuntos, numa única subconsulta: existe UF que informou o
+    mesmo indicador, recorte e unidade em um dos dois anos (o do registro ou o anterior) e não no
+    outro. Informar é ter valor: "-" (inexistente, valor 0) conta; "..." (não disponível) não.
+
+    Só o Brasil precisa da regra: a região já fica nula quando alguma UF não informa (regra 4), e o
+    total sem recorte publica todas as UFs. O CASE externo faz a subconsulta rodar só nas linhas do
+    Brasil com recorte. O Django repete a expressão em cada anotação que a usa, e o custo que fica
+    é o do planejamento: por isso uma subconsulta só, e `alias()` em vez de `annotate()` (RNF02).
+    """
+    ano_externo = OuterRef(OuterRef("ano"))
+    informados = RegistroAnual.objects.exclude(situacao=Situacao.NAO_DISPONIVEL)
+    no_outro_ano = _mesma_localidade(informados).annotate(_recorte=_chave("recorte_id"))
+    no_outro_ano = no_outro_ano.filter(
+        _recorte=_chave(OuterRef("recorte_id")),
+        indicador_id=OuterRef("indicador_id"),
+        unidade=OuterRef("unidade"),
+        # o "outro" dos dois anos: ano + (ano - 1) - ano desta linha
+        ano=ano_externo * 2 - 1 - OuterRef("ano"),
+    )
+    so_em_um_ano = informados.filter(
+        estado__isnull=False,
+        indicador_id=OuterRef("indicador_id"),
+        recorte_id=OuterRef("recorte_id"),
+        unidade=OuterRef("unidade"),
+        ano__in=[OuterRef("ano"), OuterRef("ano") - 1],
+    ).filter(~Exists(no_outro_ano))
+    return Case(
+        When(
+            Q(regiao__tipo=Regiao.Tipo.PAIS, recorte__isnull=False) & Exists(so_em_um_ano),
+            then=Value(True),
+        ),
+        default=Value(False),
+        output_field=BooleanField(),
+    )
+
+
 def _total_de(indicador_ref: str) -> QuerySet:
     """O registro sem recorte do indicador `indicador_ref`, na mesma localidade, ano e unidade."""
     return _mesma_localidade(RegistroAnual.objects.all()).filter(
@@ -147,6 +190,11 @@ def _variacao(atual, anterior):
     return ExpressionWrapper(
         (atual - anterior) * CEM / NullIf(anterior, Value(0)), output_field=DECIMAL
     )
+
+
+def _sem_ufs_trocadas(variacao):
+    """A variação, ou nula quando o conjunto de UFs que informaram mudou (ADR 0009)."""
+    return Case(When(_ufs_mudaram=True, then=NULO_DECIMAL), default=variacao, output_field=DECIMAL)
 
 
 def _com_taxa(registros: QuerySet) -> QuerySet:
@@ -198,12 +246,14 @@ def anotar_registros(registros: QuerySet | None = None) -> QuerySet:
             RegistroAnual.objects.filter(indicador_id=OuterRef("indicador__indicador_pai_id"))
         ),
     )
+    # alias: usada só dentro das variações, não vira coluna do SELECT (ver _conjunto_de_ufs_mudou)
+    registros = registros.alias(_ufs_mudaram=_conjunto_de_ufs_mudou())
 
     com_recorte = Q(recorte__isnull=False)
     no_pai = Q(recorte__isnull=True, _pai_com_registros=True)
     registros = registros.annotate(
-        variacao_valor_pct=_variacao(F("valor"), F("_valor_anterior")),
-        variacao_taxa_pct=_variacao(F("taxa"), F("_taxa_anterior")),
+        variacao_valor_pct=_sem_ufs_trocadas(_variacao(F("valor"), F("_valor_anterior"))),
+        variacao_taxa_pct=_sem_ufs_trocadas(_variacao(F("taxa"), F("_taxa_anterior"))),
         participacao_tipo=Case(
             When(com_recorte, then=Value(PARTICIPACAO_NO_TOTAL)),
             When(no_pai, then=Value(PARTICIPACAO_NO_PAI)),
