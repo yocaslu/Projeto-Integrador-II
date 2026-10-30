@@ -122,52 +122,39 @@ def _do_ano_anterior() -> QuerySet:
     )
 
 
-def _ufs_que_informaram(ano_ref) -> QuerySet:
-    """UFs que informaram o mesmo indicador, recorte e unidade do registro externo em `ano_ref`.
+def _conjunto_de_ufs_mudou() -> Case:
+    """Verdadeiro no Brasil com recorte quando as UFs que informaram diferem do ano anterior.
 
-    Informar é ter valor: "-" (inexistente, valor 0) conta; "..." (não disponível) não.
+    É a diferença simétrica dos dois conjuntos, numa única subconsulta: existe UF que informou o
+    mesmo indicador, recorte e unidade em um dos dois anos (o do registro ou o anterior) e não no
+    outro. Informar é ter valor: "-" (inexistente, valor 0) conta; "..." (não disponível) não.
+
+    Só o Brasil precisa da regra: a região já fica nula quando alguma UF não informa (regra 4), e o
+    total sem recorte publica todas as UFs. O CASE externo faz a subconsulta rodar só nas linhas do
+    Brasil com recorte. O Django repete a expressão em cada anotação que a usa, e o custo que fica
+    é o do planejamento: por isso uma subconsulta só, e `alias()` em vez de `annotate()` (RNF02).
     """
-    return RegistroAnual.objects.filter(
+    ano_externo = OuterRef(OuterRef("ano"))
+    informados = RegistroAnual.objects.exclude(situacao=Situacao.NAO_DISPONIVEL)
+    no_outro_ano = _mesma_localidade(informados).annotate(_recorte=_chave("recorte_id"))
+    no_outro_ano = no_outro_ano.filter(
+        _recorte=_chave(OuterRef("recorte_id")),
+        indicador_id=OuterRef("indicador_id"),
+        unidade=OuterRef("unidade"),
+        # o "outro" dos dois anos: ano + (ano - 1) - ano desta linha
+        ano=ano_externo * 2 - 1 - OuterRef("ano"),
+    )
+    so_em_um_ano = informados.filter(
         estado__isnull=False,
         indicador_id=OuterRef("indicador_id"),
         recorte_id=OuterRef("recorte_id"),
         unidade=OuterRef("unidade"),
-        ano=ano_ref,
-    ).exclude(situacao=Situacao.NAO_DISPONIVEL)
-
-
-def _a_uf_informou(ano_ref) -> Exists:
-    """O mesmo registro (de uma UF) foi informado em `ano_ref`; usa o índice (ADR 0008)."""
-    registros = _mesma_localidade(RegistroAnual.objects.all()).annotate(
-        _recorte=_chave("recorte_id")
-    )
-    return Exists(
-        registros.filter(
-            _recorte=_chave(OuterRef("recorte_id")),
-            indicador_id=OuterRef("indicador_id"),
-            unidade=OuterRef("unidade"),
-            ano=ano_ref,
-        ).exclude(situacao=Situacao.NAO_DISPONIVEL)
-    )
-
-
-def _conjunto_de_ufs_mudou() -> Case:
-    """Verdadeiro no Brasil com recorte quando as UFs que informaram diferem do ano anterior.
-
-    É a diferença simétrica dos dois conjuntos: UF que informou neste ano e não no anterior, ou
-    no anterior e não neste. Só o Brasil precisa da regra: a região já fica nula quando alguma UF
-    não informa (regra 4), e o total sem recorte publica todas as UFs. O CASE externo garante que
-    as subconsultas só rodem nas poucas linhas do Brasil com recorte (RNF02).
-    """
-    entrou = _ufs_que_informaram(OuterRef("ano")).filter(~_a_uf_informou(OuterRef("ano") - 1))
-    saiu = _ufs_que_informaram(OuterRef("ano") - 1).filter(~_a_uf_informou(OuterRef("ano") + 1))
+        ano__in=[OuterRef("ano"), OuterRef("ano") - 1],
+    ).filter(~Exists(no_outro_ano))
     return Case(
         When(
-            Q(regiao__tipo=Regiao.Tipo.PAIS, recorte__isnull=False),
-            then=Case(
-                When(Exists(entrou) | Exists(saiu), then=Value(True)),
-                default=Value(False),
-            ),
+            Q(regiao__tipo=Regiao.Tipo.PAIS, recorte__isnull=False) & Exists(so_em_um_ano),
+            then=Value(True),
         ),
         default=Value(False),
         output_field=BooleanField(),
@@ -258,8 +245,9 @@ def anotar_registros(registros: QuerySet | None = None) -> QuerySet:
         _pai_com_registros=Exists(
             RegistroAnual.objects.filter(indicador_id=OuterRef("indicador__indicador_pai_id"))
         ),
-        _ufs_mudaram=_conjunto_de_ufs_mudou(),
     )
+    # alias: usada só dentro das variações, não vira coluna do SELECT (ver _conjunto_de_ufs_mudou)
+    registros = registros.alias(_ufs_mudaram=_conjunto_de_ufs_mudou())
 
     com_recorte = Q(recorte__isnull=False)
     no_pai = Q(recorte__isnull=True, _pai_com_registros=True)

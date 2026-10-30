@@ -48,8 +48,14 @@ edições são pequenas.
   o contrato já admitia `variacao` nula; acrescenta-se um caso documentado em `contrato-api.md`.
   O esquema OpenAPI não muda.
 - Ordenar por `variacao_valor` ou `variacao_taxa` coloca esses registros entre os nulos, ao final.
-- As subconsultas novas só rodam nas linhas do Brasil com recorte (CASE externo) e comparam
+- A subconsulta nova só roda nas linhas do Brasil com recorte (CASE externo) e compara
   localidade e recorte com `_chave()`, para usar o índice do ADR 0008; a anotação continua em uma
-  única consulta.
+  única consulta. O custo que fica é o do **planejamento**: o Django repete a expressão em cada
+  anotação que a usa (as duas variações e as duas versões arredondadas). Por isso a diferença
+  simétrica é uma única subconsulta e a marcação entra por `alias()`, sem virar coluna. Medido na
+  carga real (consulta de uma UF, ano e indicador): planejamento de 2,2 ms para 3,3 ms, com a
+  execução inalterada (cerca de 1 ms); a primeira versão, com duas subconsultas e `annotate()`,
+  chegava a 7,7 ms. p95 do teste do RNF02, `main` → esta mudança: `/registros/` 56 → 69 ms, CSV
+  54 → 72 ms, `/ranking/` 57 → 58 ms, `/comparacao/` 105 → 155 ms, todos abaixo do limite de 500 ms.
 - A participação (parcela da corporação no total) não muda: no mesmo ano, numerador e
   denominador vêm da mesma tabela e da mesma edição.
