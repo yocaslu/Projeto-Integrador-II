@@ -1,4 +1,8 @@
 import "@testing-library/jest-dom";
+import { configure } from "@testing-library/react";
+
+// Com a máquina ocupada, o limite padrão de 1 s das buscas assíncronas gera falhas falsas.
+configure({ asyncUtilTimeout: 4000 });
 
 // O jsdom não tem ResizeObserver, usado pelo ResponsiveContainer do Recharts. Sem tamanho,
 // o SVG não é desenhado; os testes conferem as tabelas, os textos e os links.
