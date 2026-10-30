@@ -121,6 +121,14 @@ jobs:
         run: |
           cp .env.example .env
           docker compose up -d --build --wait
+      - name: Esperar o frontend
+        # O serviço roda npm install antes do Vite e não tem healthcheck: o --wait não cobre isso.
+        run: timeout 180 sh -c 'until curl -sf http://localhost:5173 > /dev/null; do sleep 2; done'
+      - name: Carregar os dados
+        # Sem carga concluída a API responde 503 (contrato, 7.1) e o painel não teria o que mostrar.
+        run: |
+          docker compose exec -T backend uv run python manage.py migrate
+          docker compose exec -T backend uv run python manage.py importar_anuario
       - uses: actions/setup-node@v5
         with:
           node-version: 24

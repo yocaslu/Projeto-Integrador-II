@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "jest"
+    "test": "jest",
+    "malha": "node scripts/baixar-malha.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",
@@ -20,7 +21,7 @@
   "devDependencies": {
     "@babel/preset-env": "^7.28.0",
     "@babel/preset-react": "^7.27.1",
-    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.0",
     "@vitejs/plugin-react": "^5.0.0",
     "babel-jest": "^30.0.0",
@@ -34,8 +35,11 @@
     "globals": {
       "__REPOSITORIO_URL__": "https://github.com/yocaslu/projeto-integrador-ii"
     },
-    "setupFilesAfterEnv": ["<rootDir>/src/setupTests.js"],
+    "setupFilesAfterEnv": [
+      "<rootDir>/src/setupTests.js"
+    ],
     "moduleNameMapper": {
+      "^react-leaflet$": "<rootDir>/src/testes/reactLeafletFalso.jsx",
       "\\.(css)$": "identity-obj-proxy"
     }
   }

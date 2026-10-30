@@ -1,12 +1,17 @@
 /* Tokens de cor. A paleta dos gráficos deve ser segura para daltonismo (RNF01)
-   e manter contraste mínimo de 4,5:1 para texto. */
+   e manter contraste mínimo de 4,5:1 para texto. As cores das séries ficam em
+   src/utils/cores.js, porque o Recharts as recebe por propriedade. */
 :root {
   --cor-fundo: #ffffff;
+  --cor-fundo-suave: #f3f5f7;
+  --cor-borda: #d5d9de;
   --cor-texto: #1b1f24;
   --cor-texto-suave: #4a5260;
   --cor-destaque: #0b5cad;
   --cor-foco: #b35c00;
+  --cor-erro: #a1001b;
   --espaco: 1rem;
+  --raio: 6px;
   font-family: system-ui, sans-serif;
   line-height: 1.5;
   color: var(--cor-texto);
@@ -23,6 +28,21 @@ main,
   max-width: 72rem;
   margin: 0 auto;
   padding: var(--espaco);
+}
+
+.cabecalho h1 {
+  font-size: 1.5rem;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin: 0 0 var(--espaco);
+}
+
+h3 {
+  font-size: 1.0625rem;
+  margin: 0 0 0.5rem;
 }
 
 .rodape {
@@ -47,4 +67,206 @@ a {
 .pular-conteudo:focus {
   left: var(--espaco);
   top: var(--espaco);
+}
+
+/* Filtros */
+.filtros {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--espaco);
+  padding: var(--espaco);
+  background: var(--cor-fundo-suave);
+  border-radius: var(--raio);
+  margin-bottom: calc(var(--espaco) * 1.5);
+}
+
+.campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.campo label {
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.campo select {
+  font: inherit;
+  padding: 0.5rem;
+  min-height: 2.75rem;
+  border: 1px solid var(--cor-texto-suave);
+  border-radius: var(--raio);
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+/* Cartões */
+.cartoes {
+  margin-bottom: calc(var(--espaco) * 1.5);
+}
+
+.cartoes__lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--espaco);
+  margin: 0;
+}
+
+.cartao {
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: 0.75rem var(--espaco);
+}
+
+.cartao dt {
+  font-size: 0.875rem;
+  color: var(--cor-texto-suave);
+}
+
+.cartao dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Gráficos */
+.painel__graficos {
+  display: grid;
+  gap: calc(var(--espaco) * 2);
+}
+
+@media (min-width: 64rem) {
+  .painel__graficos {
+    grid-template-columns: 3fr 2fr;
+    align-items: start;
+  }
+}
+
+.painel__bloco {
+  min-width: 0;
+}
+
+.grafico {
+  margin: 0;
+}
+
+.grafico figcaption {
+  color: var(--cor-texto-suave);
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+.grafico__area {
+  width: 100%;
+}
+
+.grafico__area--evolucao {
+  height: 20rem;
+}
+
+.nota,
+.fonte {
+  font-size: 0.875rem;
+  color: var(--cor-texto-suave);
+  margin: 0.5rem 0;
+}
+
+.tabela-dados {
+  margin: 0.5rem 0;
+  font-size: 0.875rem;
+}
+
+.tabela-dados summary {
+  cursor: pointer;
+  color: var(--cor-destaque);
+  min-height: 1.5rem;
+}
+
+.tabela-dados__rolagem {
+  overflow-x: auto;
+}
+
+.tabela-dados table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 0.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabela-dados caption {
+  text-align: left;
+  font-weight: 600;
+  padding-bottom: 0.25rem;
+}
+
+.tabela-dados th,
+.tabela-dados td {
+  border-bottom: 1px solid var(--cor-borda);
+  padding: 0.25rem 0.5rem;
+  text-align: right;
+}
+
+.tabela-dados th[scope="row"],
+.tabela-dados th:first-child {
+  text-align: left;
+}
+
+.erro {
+  color: var(--cor-erro);
+}
+
+.carregando {
+  color: var(--cor-texto-suave);
+}
+
+/* Mapa */
+.painel__coluna {
+  display: grid;
+  gap: calc(var(--espaco) * 2);
+  min-width: 0;
+}
+
+.mapa {
+  height: 24rem;
+  width: 100%;
+  background: var(--cor-fundo-suave);
+  border-radius: var(--raio);
+}
+
+@media (max-width: 40rem) {
+  .mapa {
+    height: 20rem;
+  }
+}
+
+.legenda-mapa {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.legenda-mapa li {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.legenda-mapa__cor {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border: 1px solid var(--cor-texto);
+}
+
+/* O contorno de foco dos gráficos fica só para a navegação por teclado, não para o clique. */
+.recharts-surface:focus:not(:focus-visible),
+.recharts-wrapper:focus:not(:focus-visible) {
+  outline: none;
 }
