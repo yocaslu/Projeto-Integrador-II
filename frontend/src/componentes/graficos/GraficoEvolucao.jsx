@@ -15,6 +15,8 @@ import { CORES } from "../../utils/cores.js";
 import { formatarTaxa, rotuloTaxa } from "../../utils/formatacao.js";
 import TabelaDados from "./TabelaDados.jsx";
 
+const ANOS_SEMPRE_VISIVEIS = 6;
+
 const ESTILOS = [
   { chave: "uf", cor: CORES.uf, traco: undefined, marcador: "circle" },
   { chave: "regiao", cor: CORES.regiao, traco: "6 4", marcador: "square" },
@@ -88,7 +90,12 @@ export default function GraficoEvolucao({ comparacao }) {
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={linhas} margin={{ top: 8, right: 16, bottom: 8, left: 0 }}>
             <CartesianGrid stroke={CORES.grade} vertical={false} />
-            <XAxis dataKey="ano" tickMargin={6} interval="equidistantPreserveStart" />
+            <XAxis
+              dataKey="ano"
+              tickMargin={6}
+              // Série curta mostra todos os anos; a de 14 anos pula rótulos conforme a largura.
+              interval={linhas.length <= ANOS_SEMPRE_VISIVEIS ? 0 : "equidistantPreserveStart"}
+            />
             <YAxis width={48} tickFormatter={(valor) => formatarTaxa(valor).replace(",00", "")} />
             <Tooltip
               formatter={(valor, chave) => [formatarTaxa(valor), nomes[chave]]}
@@ -114,12 +121,6 @@ export default function GraficoEvolucao({ comparacao }) {
         </ResponsiveContainer>
       </div>
 
-      {linhas.length < 3 && (
-        <p className="nota">
-          Este indicador tem dados de {anoMin} e {anoMax} no Anuário 2026. A série longa, de 2012
-          a 2025, existe para as Mortes Violentas Intencionais.
-        </p>
-      )}
       {origemMista && (
         <p className="nota">
           Taxas de {anosPublicados[0]} a {anosPublicados.at(-1)} publicadas pelo FBSP; nos demais
@@ -151,7 +152,7 @@ export default function GraficoEvolucao({ comparacao }) {
       />
 
       <p className="fonte">
-        Fonte: FBSP, Anuário Brasileiro de Segurança Pública 2026
+        Fonte: FBSP, Anuário Brasileiro de Segurança Pública, edições de 2024 a 2026
         {fontesTaxa ? `; denominador da taxa: ${fontesTaxa}` : ""}.{" "}
         <a
           href={urlApi("/comparacao/", {

@@ -119,7 +119,7 @@ export default function GraficoRanking({ ranking, ufSelecionada, aoSelecionarUf 
       />
 
       <p className="fonte">
-        Fonte: FBSP, Anuário Brasileiro de Segurança Pública 2026
+        Fonte: FBSP, Anuário Brasileiro de Segurança Pública, edições de 2024 a 2026
         {fonteTaxa ? `; denominador da taxa: ${fonteTaxa}` : ""}.{" "}
         <a href={urlApi("/ranking/", { indicador: indicador.slug, ano, formato: "csv" })}>
           Baixar estes dados (CSV)

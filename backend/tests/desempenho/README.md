@@ -5,7 +5,7 @@ ano e indicador. O método foi decidido no ADR 0005 (seção 4); este resumo nã
 
 - **Arquivo:** `test_p95.py`, com o marker `desempenho`. Fica fora da execução padrão e roda em
   passo próprio do CI: `uv run pytest -m desempenho --no-cov`.
-- **Banco:** a carga real completa (1.980 registros e 462 linhas de população), importada uma vez
+- **Banco:** a carga real completa (3.498 registros e 462 linhas de população), importada uma vez
   por sessão pelo `importar_anuario` a partir de `dados/brutos/` (fixture `carga_real`, em
   `conftest.py`) e apagada no fim.
 - **Cliente:** `django.test.Client`, em processo, sem `If-None-Match`; no CSV, o streaming é

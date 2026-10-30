@@ -216,6 +216,7 @@ projeto-integrador-ii/
 │   │   │   ├── escolhas.py            # Situacao, Metodo, Unidade (TextChoices usados pelos modelos e pela importação)
 │   │   │   └── queries.py             # anotar_registros (taxa, variação, participação por subconsulta), ordenacao, ordem canônica, ranking, comparacao
 │   │   ├── importacao/
+│   │   │   ├── edicoes.py             # edição dona de cada ano, revisões entre edições (ADR 0012)
 │   │   │   ├── models.py              # Carga
 │   │   │   ├── mapeamento.py          # especificação declarativa das tabelas (T01–T21) e contagem esperada
 │   │   │   ├── processo.py            # fluxo completo da importação (o comando só trata opções)
@@ -241,7 +242,7 @@ projeto-integrador-ii/
 ├── e2e/                               # Playwright + axe-core contra o ambiente com dados importados
 ├── dados/
 │   ├── README.md                      # origem e SHA-256 de cada arquivo
-│   ├── brutos/                        # anuario-2026.xlsx, POP2024_20241230.ods, POP2025_20260828.ods
+│   ├── brutos/                        # anuario-2026.xlsx, anuario-2025.xlsx, anuario-2024.xlsx, POP2024_20241230.ods, POP2025_20260828.ods, projecoes_2024_*.xlsx
 │   └── relatorios/                    # gerados pela importação (fora do Git)
 ├── infra/                             # compose.prod.yml, traefik/
 ├── docs/
@@ -249,7 +250,7 @@ projeto-integrador-ii/
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
 │   ├── modelagem.md                   # modelagem de dados (fonte da verdade; transcrição do roteiro com os ADRs)
 │   ├── api/openapi.yaml               # esquema gerado e versionado (diff verificado no CI)
-│   └── adr/                           # 0001 a 0011 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice; 0009: variação do Brasil em recortes; 0010: versões e releases; 0011: população de 2012 a 2023)
+│   └── adr/                           # 0001 a 0012 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice; 0009: variação do Brasil em recortes; 0010: versões e releases; 0011: população de 2012 a 2023; 0012: edições anteriores)
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
 
@@ -270,7 +271,8 @@ Resumo:
 - **Só conferência:** T01 (MVI 2024–2025; idêntica a T02), T09 (MVI, MDIP e proporção MDIP/MVI) e a coluna de proporção da T21; as proporções são comparadas à `participacao` calculada.
 - **Ignoradas:** painéis (P), gráficos (G), quadros (Q) e as demais tabelas.
 - **População:** aba `BRASIL_E_UFs` dos dois `.ods` do IBGE (2024 e 2025), já com totais de regiões e Brasil; de 2012 a 2023, projeções do IBGE, somando os 19 grupos etários com sexo `Ambos`.
-- **Volume esperado:** 1.980 registros (1.750 lidos + 230 regionais calculados, dos quais 24 nulos) e 462 linhas de população. Contagem diferente é falha da importação.
+- **Edições anteriores (ADR 0012):** 2023 vem da edição de 2025 e 2022 da de 2024, com as abas em `EDICOES_ANTERIORES`, em `mapeamento.py`; a dona de cada ano é escolhida em `edicoes.py`.
+- **Volume esperado:** 3.498 registros (3.038 lidos + 460 regionais calculados, dos quais 59 nulos) e 462 linhas de população. Contagem diferente é falha da importação.
 
 Algoritmo:
 1. Conferir o SHA-256 dos arquivos contra `dados/README.md`; se divergir, abortar.
@@ -301,13 +303,13 @@ Valem para qualquer mudança. Se uma tarefa exigir quebrar uma delas, pare e per
 5. Não existe total de furtos. O indicador `furto` não tem registros próprios; nunca calcule nem exiba um total. Os blocos "Roubo e Furto" das tabelas T11 e T12 não são importados.
 6. “-” → `valor = 0`, `situacao = inexistente`. “...” → `valor = NULL`, `situacao = nao_disponivel`. Célula vazia → `nao_disponivel` com aviso no relatório. Qualquer outro texto aborta a importação com a célula de origem na mensagem.
 7. Localidade não reconhecida, coluna de cabeçalho não resolvida ou contagem diferente da esperada abortam a importação. Nunca pular linha em silêncio.
-8. Cada (indicador, localidade, recorte, ano) tem **uma** tabela dona em `mapeamento.py`; outra tabela com o mesmo dado só entra como conferência no relatório.
+8. Cada (indicador, localidade, recorte, unidade, ano) tem **uma** tabela dona; outra tabela com o mesmo dado só entra como conferência no relatório. Entre edições, a dona é a mais recente cuja tabela traz o ano, em todas as localidades; "..." conta como publicado (ADR 0012).
 9. Perfis de vítimas (sexo, raça/cor, faixa etária) estão fora do escopo; as únicas dimensões de recorte são `corporacao` e `situacao_policial`. Proporções publicadas (T09, T21) não são importadas: são `participacao`, calculada na consulta.
 
 **Banco e cálculos**
 10. Valores, taxas e populações usam `DecimalField` (NUMERIC). `float` é proibido em modelos, cálculos e serializers; converter célula com `Decimal(str(v))`.
 11. Taxa calculada só quando a base é 100 mil habitantes e há população do IBGE para o ano (vale para vítimas e ocorrências); nos demais casos, `taxa_publicada`.
-12. Variação e participação por **subconsulta** (ano anterior; indicador-pai ou total do indicador), nunca por função de janela, sempre na mesma unidade; nulas se faltar o termo de comparação ou se a base for zero; no Brasil com recorte, a variação também é nula quando o conjunto de UFs que informaram muda entre os dois anos (ADR 0009). Nunca armazenadas.
+12. Variação e participação por **subconsulta** (ano anterior; indicador-pai ou total do indicador), nunca por função de janela, sempre na mesma unidade; nulas se faltar o termo de comparação ou se a base for zero; no Brasil com recorte, a variação também é nula quando o conjunto de UFs que informaram muda entre os dois anos (ADR 0009); na base de mulheres, a variação da taxa de 2023 é nula (ADR 0012). Nunca armazenadas.
 13. Toda alteração de modelo vem com migração no mesmo commit. Migração já mesclada na `main` não é editada; corrige-se com outra migração.
 14. Constraints vivem no banco (`CheckConstraint(condition=...)` de localidade, `UniqueConstraint(..., nulls_distinct=False)`), não só em validação Python.
 
@@ -352,15 +354,7 @@ Não decida sozinho; pergunte antes de implementar o que depender destes pontos.
 10. ~~API sem carga concluída~~ — **resolvida (ADR 0005):** 503, `no-store`, sem ETag (contrato, 7.1).
 11. ~~Método do teste do RNF02~~ — **resolvida (ADR 0005):** pytest `-m desempenho` no CI, carga real, cliente em processo, p95 por recurso (`tests/desempenho/README.md`).
 12. ~~População de 2012 a 2023~~ — **resolvida (ADR 0011):** projeções do IBGE de 2012 a 2023 e estimativas em 2024 e 2025; `taxa.fonte` calculada vem da linha de `POPULACAO`. A edição de 2024 usa o Censo como denominador, o que a pendência 13 trata.
-13. **Edições anteriores do Anuário** — **decidida, implementação pendente:**
-    - **O quê:** importar as planilhas das edições anteriores (hoje `anuario-2025.xlsx` e `anuario-2024.xlsx`, já em `dados/brutos/` e listadas fora do manifesto em `dados/README.md`) para estender as séries dos indicadores do escopo.
-    - **Edição dona do ano:** cada (indicador, recorte, unidade, ano) vem, em **todas as localidades**, da **edição mais recente cuja tabela traz esse ano**. A dona nunca é escolhida por localidade: "..." e "-" contam como publicados, e o Brasil e as UFs saem sempre da mesma edição, para o Brasil continuar igual à soma das UFs que informaram (regra 4). O mesmo dado em edição anterior entra só como conferência no relatório, como revisão do FBSP, e nunca substitui o da mais recente. É a regra 8 aplicada entre edições. Resultado: 2024 e 2025 da edição de 2026, 2023 da de 2025 e 2022 da de 2024.
-    - **MVI:** vem só da T02 da edição de 2026 (2012–2025); as séries de MVI das edições anteriores não são lidas. **2011 fica de fora:** só a edição de 2024 o traz, sem taxa, sem população e com números aparentemente incompletos (Pará: 1.269 em 2011 e 3.401 em 2012).
-    - **Revisões entre edições:** a variação segue calculada entre anos de edições diferentes, sem nova regra de anulação, porque a edição de 2026 não traz 2023 e toda variação 2023→2024 cruza edições. As revisões podem ser grandes: em 490 comparações de totais por UF, 28 mudam mais de 10 pontos percentuais e 8 invertem o sinal (roubo a estabelecimento comercial no PA: 896 → 740 na edição de 2025, 2.035 na de 2026). Por isso, toda linha lida da edição dona cujo valor difere do publicado por uma edição anterior recebe na `observacao` o valor anterior e a edição, inclusive quando a dona traz "..." (BA, PA e RN nos recortes da T08 em 2024). O ADR novo corrige a frase do ADR 0009 de que as revisões por UF são pequenas.
-    - **Taxa por 100 mil mulheres de 2022:** vem do Censo 2022, e a de 2023 das Projeções. O denominador implícito salta 3,7% na mediana das localidades (0,4% de 2023 para 2024, no Brasil), e o feminicídio sobe 1,37% em valor enquanto a taxa cai 2,27%. Por isso, `variacao.taxa_pct` de 2023 é nula na base de mulheres (regra 12); `valor_pct` não muda. As bases de veículos e instituições não têm esse salto e não entram na regra.
-    - **Relatório:** cada edição é validada com as próprias linhas, inclusive a variação e as proporções publicadas. A diferença entre edições é `INFORMACAO`, não divergência, e não quebra o `--estrito`. A taxa de 2022 da edição de 2024 contra a população das Projeções também é `INFORMACAO`, por causa do Censo; nos outros anos, continua `DIVERGENCIA`.
-    - **Ao implementar:** ADR próprio; manifesto com várias planilhas; um `TABELAS` por edição em `mapeamento.py`, porque a numeração das abas muda (ex.: a T08 de 2026 é a T09 em 2025 e a T10 em 2024); agregação por edição, antes de escolher a dona; `origem` com o nome do arquivo; contagem esperada por edição (3.498 registros no total: 3.038 lidos + 460 regionais); regras 8 e 12 e `docs/importacao.md` atualizados.
-    - **Já levantado:** a edição de 2025 lê sem erro com o mapeamento atual, trocando só as abas. A de 2024 exige ajustes no leitor: UFs agrupadas por qualidade do dado em T04–T06, T10 e T11 (rótulo na coluna B e linhas "Grupo 1/2/3"), grupo "Ns. Abs." em T16 e T17 e outra hierarquia de cabeçalho na T23. Ficam sem leitura as tabelas só de MVI (T01 e T02 em 2025; T02 e T03 em 2024); as proporções de MDIP são conferidas com a MVI da própria tabela (T10 em 2025, T11 em 2024). Nas duas edições, o Brasil é a soma das UFs que informaram. A edição de 2024 usa o Censo 2022 como denominador; por isso as taxas de 2022 são calculadas com as Projeções (pendência 12), e as publicadas ficam em `taxa_publicada`.
+13. ~~Edições anteriores do Anuário~~ — **resolvida (ADR 0012):** 2023 da edição de 2025 e 2022 da de 2024; a dona é escolhida por ano, nunca por localidade, e as revisões vão para a `observacao`.
 
 ---
 

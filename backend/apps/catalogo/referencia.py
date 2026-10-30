@@ -38,7 +38,8 @@ FONTES: tuple[FonteRef, ...] = (
         "Secretarias Estaduais de Segurança Pública e/ou Defesa Social (compilação FBSP)",
         "Registros policiais das secretarias estaduais de segurança pública e defesa social, do "
         "ISP/RJ e de polícias civis e militares de alguns estados, compilados pelo Fórum "
-        "Brasileiro de Segurança Pública no 20º Anuário Brasileiro de Segurança Pública (2026). "
+        "Brasileiro de Segurança Pública nas edições de 2024 a 2026 do Anuário Brasileiro de "
+        "Segurança Pública. "
         'A linha "Fonte:" completa de cada tabela está em docs/importacao.md.',
         "https://publicacoes.forumseguranca.org.br/items/bb542342-3cf8-47a5-a51d-a0eb911914b9",
     ),
@@ -61,7 +62,7 @@ FONTES: tuple[FonteRef, ...] = (
         "senatran-frota",
         "Senatran – Frota de veículos",
         "Frota de veículos registrada no RENAVAM e informada pela Secretaria Nacional de Trânsito "
-        "(Ministério dos Transportes) em dezembro de 2024 e de 2025.",
+        "(Ministério dos Transportes), usada pelo FBSP nas taxas de 2022 a 2025.",
         "https://www.gov.br/transportes/pt-br/assuntos/transito/conteudo-Senatran/"
         "estatisticas-frota-de-veiculos-senatran",
     ),
@@ -69,8 +70,8 @@ FONTES: tuple[FonteRef, ...] = (
         "bcb-instituicoes",
         "Banco Central do Brasil – Instituições financeiras",
         "Quantidade de instituições financeiras (bancos, caixas eletrônicos e empresas de "
-        "transporte de valores) informada pelo Banco Central do Brasil em dezembro de 2024 e de "
-        "2025.",
+        "transporte de valores) informada pelo Banco Central do Brasil, usada pelo FBSP nas taxas "
+        "de 2022 a 2025.",
         "https://www.bcb.gov.br/estabilidadefinanceira/relacao_instituicoes_funcionamento",
     ),
 )

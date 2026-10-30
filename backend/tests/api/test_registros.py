@@ -380,3 +380,26 @@ def test_taxa_publicada_continua_com_a_fonte_do_indicador(client, serie):
 
     assert taxa["origem"] == "publicada"
     assert taxa["fonte"]["nome"] == serie.fontes["ibge-projecoes"].nome
+
+
+def test_variacao_da_taxa_de_2023_e_nula_na_base_de_mulheres(client, serie):
+    # A taxa publicada de 2022 usa o Censo, e a de 2023 as Projeções (ADR 0012).
+    for ano, valor, taxa in ((2022, 10, "2"), (2023, 11, "1.9"), (2024, 12, "2.1")):
+        RegistroAnual.objects.create(
+            estado=serie.estados["PE"],
+            indicador=serie.indicadores["feminicidio"],
+            fonte=serie.fontes["secretarias-seguranca"],
+            ano=ano,
+            unidade=Unidade.VITIMAS,
+            valor=Decimal(valor),
+            taxa_publicada=Decimal(taxa),
+            situacao=Situacao.INFORMADO,
+            origem="T00!B1",
+        )
+
+    corpo = client.get("/api/v1/registros/?uf=PE&indicador=feminicidio&ordenar=ano").json()
+    variacoes = {r["ano"]: r["variacao"] for r in corpo["results"]}
+
+    assert variacoes[2023]["taxa_pct"] is None
+    assert variacoes[2023]["valor_pct"] == "10.00"
+    assert variacoes[2024]["taxa_pct"] == "10.53"

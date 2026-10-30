@@ -1,7 +1,7 @@
 """Carga real para o teste de desempenho (ADR 0005, seção 4).
 
 A planilha completa de dados/brutos/ é importada uma vez por sessão, pelo próprio comando
-importar_anuario (1.980 registros e 462 populações), fora das transações dos testes, e apagada no
+importar_anuario (3.498 registros e 462 populações), fora das transações dos testes, e apagada no
 fim, para não sobrar nada no banco de teste.
 """
 
@@ -29,7 +29,7 @@ def carga_real(django_db_setup, django_db_blocker, tmp_path_factory):
             relatorio=tmp_path_factory.mktemp("relatorios"),
             stdout=StringIO(),
         )
-        assert RegistroAnual.objects.count() == 1980
+        assert RegistroAnual.objects.count() == 3498
         yield
         Indicador.objects.update(indicador_pai=None)  # PROTECT na própria tabela
         for modelo in (
