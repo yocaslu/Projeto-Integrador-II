@@ -13,7 +13,7 @@ Projeto Integrador II.
 | --- | --- |
 | Banco de dados e importação das planilhas | Pronto: 1.980 registros e 66 populações, sem divergência acima de 1e-6 no relatório de validação |
 | API REST v1 (`/api/v1/`) | Pronta: todos os recursos do contrato, com CSV, cache e documentação OpenAPI |
-| Dashboard (React) e testes de ponta a ponta | Próxima fase |
+| Dashboard (React) e testes de ponta a ponta | Pronto: filtros, cartões, evolução, ranking, mapa e CSV, com testes de acessibilidade |
 
 Indicadores: Mortes Violentas Intencionais (MVI) e seus componentes, letalidade policial (por
 corporação e situação do policial), feminicídio, roubo (total e subtipos) e furto (veículos e
@@ -127,6 +127,35 @@ O índice da documentação está em [`docs/README.md`](docs/README.md).
 - Nenhuma credencial no repositório: tudo vem de variáveis de ambiente (veja `.env.example`).
 - As regras do projeto (decisões, regras invariáveis e Definição de pronto) estão em
   [`CLAUDE.md`](CLAUDE.md); decisões de arquitetura, em [`docs/adr/`](docs/adr/).
+
+## Versões
+
+As versões seguem o [SemVer](https://semver.org/lang/pt-BR/) e são publicadas como
+[releases](https://github.com/yocaslu/Projeto-Integrador-II/releases), com imagens Docker no GitHub
+Container Registry: `ghcr.io/yocaslu/projeto-integrador-ii/backend` e `.../frontend`. A versão da
+aplicação é independente da versão da API (`/api/v1/`), que só muda com quebra de contrato.
+
+Para publicar uma versão:
+
+1. Em um pull request, suba a versão nos quatro arquivos:
+
+   ```bash
+   (cd frontend && npm version X.Y.Z --no-git-tag-version)
+   sed -i 's/^version = ".*"/version = "X.Y.Z"/' backend/pyproject.toml
+   (cd backend && uv lock)
+   ```
+
+2. Depois do merge, crie a tag na `main`:
+
+   ```bash
+   git switch main && git pull
+   git tag -a vX.Y.Z -m "vX.Y.Z"
+   git push origin vX.Y.Z
+   ```
+
+O workflow `release.yml` confere a tag, roda o CI completo, publica as imagens (`X.Y.Z`, `X.Y` e
+`latest`) e cria o release. Ele não implanta: para usar uma versão, defina `TAG=X.Y.Z` no
+`infra/compose.prod.yml`. Detalhes no [ADR 0010](docs/adr/0010-versionamento-e-releases.md).
 
 ## Fontes dos dados
 

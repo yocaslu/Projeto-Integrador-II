@@ -11,7 +11,6 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
 
 jobs:
   imagens:
@@ -27,14 +26,15 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # O nome da imagem precisa estar em minúsculas, e o do repositório não está.
+      - run: echo "IMAGE_PREFIX=$REGISTRY/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+      # Só o SHA: "latest" é sempre o último release (ADR 0010).
       - uses: docker/build-push-action@v6
         with:
           context: ./${{ matrix.servico }}
           target: prod
           push: true
-          tags: |
-            ${{ env.IMAGE_PREFIX }}/${{ matrix.servico }}:${{ github.sha }}
-            ${{ env.IMAGE_PREFIX }}/${{ matrix.servico }}:latest
+          tags: ${{ env.IMAGE_PREFIX }}/${{ matrix.servico }}:${{ github.sha }}
 
   implantar:
     name: Implantar na VM

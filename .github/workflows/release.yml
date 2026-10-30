@@ -1,0 +1,92 @@
+name: Release
+
+# Publica uma versão ao receber a tag vX.Y.Z (ADR 0010). Não implanta: o deploy é outro workflow.
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  conferir:
+    name: Conferir a tag
+    runs-on: ubuntu-latest
+    outputs:
+      carga: ${{ steps.conferencia.outputs.carga }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: A tag precisa apontar para um commit da main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - id: conferencia
+        name: A tag precisa ser igual às versões do backend e do frontend
+        run: python3 infra/scripts/conferir_release.py "$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+
+  # Na tag não há commit anterior para comparar, então o CI roda todos os jobs, inclusive o e2e.
+  ci:
+    name: CI
+    needs: conferir
+    uses: ./.github/workflows/ci.yml
+
+  imagens:
+    name: Publicar imagem
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        servico: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: metadados
+        # Gera as tags X.Y.Z, X.Y e latest, em minúsculas, e os rótulos OCI (versão e código-fonte).
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}/${{ matrix.servico }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./${{ matrix.servico }}
+          target: prod
+          push: true
+          tags: ${{ steps.metadados.outputs.tags }}
+          labels: ${{ steps.metadados.outputs.labels }}
+
+  publicar:
+    name: Criar o GitHub Release
+    needs: [conferir, imagens]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Criar o release com as notas geradas pelos pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CARGA: ${{ needs.conferir.outputs.carga }}
+        run: |
+          versao="${GITHUB_REF_NAME#v}"
+          imagens="ghcr.io/${GITHUB_REPOSITORY,,}"
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --notes "$(cat <<EOF
+          **Imagens**
+
+          - \`$imagens/backend:$versao\`
+          - \`$imagens/frontend:$versao\`
+
+          **Dados:** versão da carga \`$CARGA\` (\`dados/README.md\`). Os dados não entram nas imagens; depois de implantar, rode \`importar_anuario\`.
+
+          **API:** \`/api/v1/\`. A versão da aplicação não acompanha a da API (ADR 0010).
+          EOF
+          )"
