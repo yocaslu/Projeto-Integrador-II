@@ -32,6 +32,24 @@ export function montarLinhas(series) {
   }));
 }
 
+// A fonte do denominador pode mudar ao longo da série: "A (2012 a 2023); B (2024 a 2025)".
+export function fontesPorPeriodo(pontos) {
+  const periodos = [];
+  for (const ponto of pontos) {
+    const nome = ponto.taxa?.fonte?.nome;
+    if (!nome) continue;
+    const ultimo = periodos.at(-1);
+    if (ultimo?.nome === nome) ultimo.fim = ponto.ano;
+    else periodos.push({ nome, inicio: ponto.ano, fim: ponto.ano });
+  }
+  if (periodos.length < 2) return periodos[0]?.nome ?? "";
+  return periodos
+    .map(({ nome, inicio, fim }) =>
+      inicio === fim ? `${nome} (${inicio})` : `${nome} (${inicio} a ${fim})`,
+    )
+    .join("; ");
+}
+
 function Marcador({ cx, cy, forma, cor }) {
   if (cx === undefined || cy === undefined) return null;
   if (forma === "square") {
@@ -52,9 +70,7 @@ export default function GraficoEvolucao({ comparacao }) {
     brasil: series[2].localidade.nome,
   };
   const regiaoSemTaxa = linhas.every((linha) => linha.regiao === null);
-  // A fonte do denominador vale para o último ano: na MVI, a série anterior a 2024 usa as taxas
-  // publicadas pelo FBSP, calculadas por ele com outra base populacional.
-  const fonteTaxa = series[0].pontos.findLast((ponto) => ponto.taxa?.fonte)?.taxa.fonte.nome;
+  const fontesTaxa = fontesPorPeriodo(series[0].pontos);
   const anosPublicados = series[0].pontos
     .filter((ponto) => ponto.taxa?.origem === "publicada")
     .map((ponto) => ponto.ano);
@@ -107,7 +123,7 @@ export default function GraficoEvolucao({ comparacao }) {
       {origemMista && (
         <p className="nota">
           Taxas de {anosPublicados[0]} a {anosPublicados.at(-1)} publicadas pelo FBSP; nos demais
-          anos, calculadas com as estimativas de população do IBGE.
+          anos, calculadas com a população do IBGE.
         </p>
       )}
       {regiaoSemTaxa && (
@@ -136,7 +152,7 @@ export default function GraficoEvolucao({ comparacao }) {
 
       <p className="fonte">
         Fonte: FBSP, Anuário Brasileiro de Segurança Pública 2026
-        {fonteTaxa ? `; denominador da taxa em ${anoMax}: ${fonteTaxa}` : ""}.{" "}
+        {fontesTaxa ? `; denominador da taxa: ${fontesTaxa}` : ""}.{" "}
         <a
           href={urlApi("/comparacao/", {
             uf: series[0].localidade.codigo,

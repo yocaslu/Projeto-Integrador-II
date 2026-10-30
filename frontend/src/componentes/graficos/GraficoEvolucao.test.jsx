@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { converterRegistro } from "../../api/cliente.js";
 import { comparacaoCurta, comparacaoMvi } from "../../testes/respostas.js";
-import GraficoEvolucao, { montarLinhas } from "./GraficoEvolucao.jsx";
+import GraficoEvolucao, { fontesPorPeriodo, montarLinhas } from "./GraficoEvolucao.jsx";
 
 function converter(comparacao) {
   return {
@@ -31,7 +31,7 @@ test("mostra legenda, tabela, fonte e link do CSV", () => {
   const tabela = screen.getByRole("table", { hidden: true });
   expect(within(tabela).getByRole("columnheader", { name: "Sudeste", hidden: true })).toBeInTheDocument();
   expect(within(tabela).getByRole("cell", { name: "7,84", hidden: true })).toBeInTheDocument();
-  expect(screen.getByText(/denominador da taxa em 2025: IBGE – Estimativas/)).toBeInTheDocument();
+  expect(screen.getByText(/denominador da taxa: IBGE – Estimativas/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /CSV/ })).toHaveAttribute(
     "href",
     "/api/v1/comparacao/?uf=SP&indicador=mvi&formato=csv",
@@ -45,6 +45,15 @@ test("avisa quando parte da série usa taxas publicadas pelo FBSP", () => {
   render(<GraficoEvolucao comparacao={comparacao} />);
 
   expect(screen.getByText(/Taxas de 2023 a 2023 publicadas pelo FBSP/)).toBeInTheDocument();
+});
+
+test("indica a fonte do denominador de cada período da série", () => {
+  const ponto = (ano, nome) => ({ ano, taxa: { fonte: nome ? { nome } : null } });
+  expect(fontesPorPeriodo([ponto(2023, "A"), ponto(2024, "A")])).toBe("A");
+  expect(fontesPorPeriodo([ponto(2022, "A"), ponto(2023, "A"), ponto(2024, "B")])).toBe(
+    "A (2022 a 2023); B (2024)",
+  );
+  expect(fontesPorPeriodo([ponto(2024, null)])).toBe("");
 });
 
 test("avisa quando a série tem só dois anos e a região não tem taxa", () => {
