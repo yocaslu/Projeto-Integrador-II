@@ -31,12 +31,20 @@ test("mostra legenda, tabela, fonte e link do CSV", () => {
   const tabela = screen.getByRole("table", { hidden: true });
   expect(within(tabela).getByRole("columnheader", { name: "Sudeste", hidden: true })).toBeInTheDocument();
   expect(within(tabela).getByRole("cell", { name: "7,84", hidden: true })).toBeInTheDocument();
-  expect(screen.getByText(/denominador da taxa: IBGE – Estimativas/)).toBeInTheDocument();
+  expect(screen.getByText(/denominador da taxa em 2025: IBGE – Estimativas/)).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /CSV/ })).toHaveAttribute(
     "href",
     "/api/v1/comparacao/?uf=SP&indicador=mvi&formato=csv",
   );
   expect(screen.queryByText(/série longa/)).not.toBeInTheDocument();
+});
+
+test("avisa quando parte da série usa taxas publicadas pelo FBSP", () => {
+  const comparacao = converter(comparacaoMvi);
+  comparacao.series[0].pontos[0].taxa.origem = "publicada";
+  render(<GraficoEvolucao comparacao={comparacao} />);
+
+  expect(screen.getByText(/Taxas de 2023 a 2023 publicadas pelo FBSP/)).toBeInTheDocument();
 });
 
 test("avisa quando a série tem só dois anos e a região não tem taxa", () => {

@@ -52,7 +52,14 @@ export default function GraficoEvolucao({ comparacao }) {
     brasil: series[2].localidade.nome,
   };
   const regiaoSemTaxa = linhas.every((linha) => linha.regiao === null);
-  const fonteTaxa = series[0].pontos.find((ponto) => ponto.taxa?.fonte)?.taxa.fonte.nome;
+  // A fonte do denominador vale para o último ano: na MVI, a série anterior a 2024 usa as taxas
+  // publicadas pelo FBSP, calculadas por ele com outra base populacional.
+  const fonteTaxa = series[0].pontos.findLast((ponto) => ponto.taxa?.fonte)?.taxa.fonte.nome;
+  const anosPublicados = series[0].pontos
+    .filter((ponto) => ponto.taxa?.origem === "publicada")
+    .map((ponto) => ponto.ano);
+  const origemMista =
+    anosPublicados.length > 0 && series[0].pontos.some((ponto) => ponto.taxa?.origem === "calculada");
   const titulo = `${rotuloTaxa(indicador.base_taxa)}, ${anoMin} a ${anoMax}`;
 
   return (
@@ -97,6 +104,12 @@ export default function GraficoEvolucao({ comparacao }) {
           a 2025, existe para as Mortes Violentas Intencionais.
         </p>
       )}
+      {origemMista && (
+        <p className="nota">
+          Taxas de {anosPublicados[0]} a {anosPublicados.at(-1)} publicadas pelo FBSP; nos demais
+          anos, calculadas com as estimativas de população do IBGE.
+        </p>
+      )}
       {regiaoSemTaxa && (
         <p className="nota">
           A taxa da região {nomes.regiao} não está disponível para este indicador, porque não há
@@ -123,7 +136,7 @@ export default function GraficoEvolucao({ comparacao }) {
 
       <p className="fonte">
         Fonte: FBSP, Anuário Brasileiro de Segurança Pública 2026
-        {fonteTaxa ? `; denominador da taxa: ${fonteTaxa}` : ""}.{" "}
+        {fonteTaxa ? `; denominador da taxa em ${anoMax}: ${fonteTaxa}` : ""}.{" "}
         <a
           href={urlApi("/comparacao/", {
             uf: series[0].localidade.codigo,
