@@ -171,13 +171,13 @@ def _total_de(indicador_ref: str) -> QuerySet:
     )
 
 
-def _populacao():
-    """População do IBGE da localidade do registro no ano (estado ou região, nunca os dois)."""
+def _populacao(campo="valor", output_field=DECIMAL):
+    """Campo da população da localidade do registro no ano (estado ou região, nunca os dois)."""
     do_ano = Populacao.objects.filter(ano=OuterRef("ano"))
     return Coalesce(
-        Subquery(do_ano.filter(estado_id=OuterRef("estado_id")).values("valor")[:1]),
-        Subquery(do_ano.filter(regiao_id=OuterRef("regiao_id")).values("valor")[:1]),
-        output_field=DECIMAL,
+        Subquery(do_ano.filter(estado_id=OuterRef("estado_id")).values(campo)[:1]),
+        Subquery(do_ano.filter(regiao_id=OuterRef("regiao_id")).values(campo)[:1]),
+        output_field=output_field,
     )
 
 
@@ -232,6 +232,9 @@ def anotar_registros(registros: QuerySet | None = None) -> QuerySet:
     anterior = _do_ano_anterior()
     taxa_anterior = _com_taxa(anterior).values("taxa")[:1]
     registros = registros.annotate(
+        # Fonte da linha de POPULACAO: é o denominador da taxa calculada (taxa.fonte).
+        populacao_fonte_id=_populacao("fonte_id", IntegerField()),
+        populacao_fonte_nome=_populacao("fonte__nome", CharField()),
         ano_referencia=F("ano") - 1,
         _valor_anterior=Subquery(anterior.values("valor")[:1], output_field=DECIMAL),
         _taxa_anterior=Subquery(taxa_anterior, output_field=DECIMAL),

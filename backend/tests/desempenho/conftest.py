@@ -1,7 +1,7 @@
 """Carga real para o teste de desempenho (ADR 0005, seção 4).
 
 A planilha completa de dados/brutos/ é importada uma vez por sessão, pelo próprio comando
-importar_anuario (1.980 registros e 66 populações), fora das transações dos testes, e apagada no
+importar_anuario (1.980 registros e 462 populações), fora das transações dos testes, e apagada no
 fim, para não sobrar nada no banco de teste.
 """
 
