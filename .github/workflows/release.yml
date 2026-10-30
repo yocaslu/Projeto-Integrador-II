@@ -79,7 +79,7 @@ jobs:
         run: |
           versao="${GITHUB_REF_NAME#v}"
           imagens="ghcr.io/${GITHUB_REPOSITORY,,}"
-          gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --notes "$(cat <<EOF
+          notas="$(cat <<EOF
           **Imagens**
 
           - \`$imagens/backend:$versao\`
@@ -90,3 +90,9 @@ jobs:
           **API:** \`/api/v1/\`. A versão da aplicação não acompanha a da API (ADR 0010).
           EOF
           )"
+          # Release criado pela interface do GitHub antes de este passo rodar: só completa as notas.
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release edit "$GITHUB_REF_NAME" --notes "$notas"
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --generate-notes --notes "$notas"
+          fi

@@ -17,6 +17,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
+from apps.registros.queries import TAXA_CALCULADA
+
 UNIDADE = Decimal(1)
 DUAS_CASAS = Decimal("0.01")
 DOZE_CASAS = Decimal("1e-12")
@@ -162,6 +164,8 @@ class TaxaSerializer(serializers.Serializer):
     def get_fonte(self, registro) -> dict | None:
         if registro.taxa is None or registro.indicador.fonte_taxa_id is None:
             return None
+        if registro.taxa_origem == TAXA_CALCULADA:
+            return {"id": registro.populacao_fonte_id, "nome": registro.populacao_fonte_nome}
         return FonteResumoSerializer(registro.indicador.fonte_taxa).data
 
 

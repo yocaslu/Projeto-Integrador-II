@@ -52,8 +52,9 @@ FONTES: tuple[FonteRef, ...] = (
     FonteRef(
         "ibge-projecoes",
         "IBGE – Projeções da população",
-        "Projeções da população do Brasil e das Unidades da Federação por sexo e idade, usadas "
-        "pelo FBSP no denominador das taxas por 100 mil mulheres.",
+        "Projeções da população do Brasil e das Unidades da Federação por sexo e idade (revisão "
+        "2024), usadas pelo FBSP no denominador das taxas por 100 mil mulheres e das taxas por "
+        "100 mil habitantes de 2012 a 2023.",
         "https://www.ibge.gov.br/estatisticas/sociais/populacao/9109-projecao-da-populacao.html",
     ),
     FonteRef(
@@ -75,7 +76,8 @@ FONTES: tuple[FonteRef, ...] = (
 )
 
 FONTE_DOS_REGISTROS = "secretarias-seguranca"
-FONTE_DA_POPULACAO = "ibge-estimativas"
+FONTE_DAS_ESTIMATIVAS = "ibge-estimativas"
+FONTE_DAS_PROJECOES = "ibge-projecoes"
 
 FONTE_DA_BASE: dict[BaseTaxa, str] = {
     BaseTaxa.HABITANTES: "ibge-estimativas",

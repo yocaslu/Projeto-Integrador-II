@@ -115,9 +115,13 @@ def obter_recortes(em_ordem: Iterable[ItensRecorte]) -> dict[ItensRecorte, Recor
 
 
 def gravar_populacao(populacoes: Iterable[PopulacaoLida], refs: Referencias) -> int:
-    fonte = refs.fontes[ref_catalogo.FONTE_DA_POPULACAO]
     objetos = [
-        Populacao(fonte=fonte, ano=lida.ano, valor=valor, **refs.localidade(localidade))
+        Populacao(
+            fonte=refs.fontes[lida.fonte],
+            ano=lida.ano,
+            valor=valor,
+            **refs.localidade(localidade),
+        )
         for lida in populacoes
         for localidade, valor in lida.valores.items()
     ]

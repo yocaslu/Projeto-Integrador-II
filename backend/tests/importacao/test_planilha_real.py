@@ -30,9 +30,9 @@ def test_toda_ancora_fica_na_linha_5():
 def test_carga_completa(tmp_path):
     resultado = importar(DADOS / "brutos", tmp_path, DADOS / "README.md")
 
-    assert (resultado.registros, resultado.calculados, resultado.populacao) == (1980, 230, 66)
+    assert (resultado.registros, resultado.calculados, resultado.populacao) == (1980, 230, 462)
     assert not resultado.relatorio.tem_divergencias
-    assert resultado.relatorio.conferidos["taxa_calculada_x_publicada"] == 850
+    assert resultado.relatorio.conferidos["taxa_calculada_x_publicada"] == 1246
     regionais = Counter(
         RegistroAnual.objects.filter(metodo=Metodo.SOMA_UFS).values_list("situacao", flat=True)
     )

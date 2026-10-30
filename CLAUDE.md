@@ -101,7 +101,7 @@ MVI (indicador-síntese), letalidade policial (mortes decorrentes de intervenç�
 - Características dos agentes são **recortes** (`RECORTES` + `RECORTE_ITENS`, pares dimensão/valor; dimensões `corporacao` e `situacao_policial`, ex.: corporação = Polícia Militar + situação = em serviço). Registro sem recorte = total.
 - `situacao`: `informado` | `inexistente` (“-” → valor 0) | `nao_disponivel` (“...” → valor nulo). Notas do FBSP vão em `observacao`.
 - `unidade` (`vitimas` | `ocorrencias`) fica no **registro**; `INDICADORES` guarda `unidade_padrao` e `base_taxa` (100 mil habitantes; 100 mil mulheres; 100 mil veículos; 100 instituições). A base vale para as duas unidades.
-- Taxa por 100 mil habitantes é **calculada** a partir de `POPULACAO` (IBGE 2024 e 2025, as mesmas estimativas usadas pelo FBSP); nos demais casos (outras bases e série MVI 2012–2023) usa-se `taxa_publicada`. A variação percentual é calculada na consulta e nunca armazenada. A população de 2012 a 2023 já foi decidida e aguarda implementação (pendência 12).
+- Taxa por 100 mil habitantes é **calculada** a partir de `POPULACAO` (IBGE: projeções de 2012 a 2023 e estimativas de 2024 e 2025, as mesmas usadas pelo FBSP; ADR 0011); nas outras bases usa-se `taxa_publicada`. A variação percentual é calculada na consulta e nunca armazenada.
 
 Ajustes ao modelo do roteiro, implementados nas migrações iniciais (ADR 0007, que também registra as decisões da implementação):
 1. `INDICADORES.slug` (único) — exigido pelo contrato da API.
@@ -133,7 +133,7 @@ Resumo para orientação. **O que vale é `docs/contrato-api.md`**: leia a seç�
 - Catálogos (`/regioes/`, `/estados/`, `/indicadores/`, `/recortes/`, `/fontes/`): array JSON na raiz, sem paginação.
 - `/registros/` e `/populacao/`: paginados (`pagina` padrão 1, `tamanho` padrão 100, máx. 1000, acima → 400), envelope `count`/`next`/`previous`/`results`.
 - `/ranking/`, `/comparacao/`, `/metadados/`: objeto, com os parâmetros efetivos (inclusive padrões resolvidos) ecoados.
-- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`), `recorte` (`null` | `id`, `rotulo`, `itens`), `unidade`, `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte` = `indicador.fonte_taxa`; `origem` e `fonte` nulas sempre que não há taxa, ADR 0008), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct` = variação da taxa, a mesma do FBSP), `participacao` (`referencia` {`tipo`, `indicador`} | `null`, `valor_pct`), `fonte`, `observacao`.
+- Registro: `id`, `ano`, `localidade`, `indicador` (`slug`, `nome`), `recorte` (`null` | `id`, `rotulo`, `itens`), `unidade`, `valor`, `situacao`, `metodo`, `taxa` (`valor`, `base`, `origem`, `fonte` = a da linha de `POPULACAO` na taxa calculada, `indicador.fonte_taxa` na publicada; `origem` e `fonte` nulas sempre que não há taxa, ADR 0008), `taxa_publicada`, `variacao` (`ano_referencia` = ano − 1, `valor_pct`, `taxa_pct` = variação da taxa, a mesma do FBSP), `participacao` (`referencia` {`tipo`, `indicador`} | `null`, `valor_pct`), `fonte`, `observacao`.
 - `participacao`: sem recorte, valor ÷ indicador-pai × 100 (`indicador_pai`); com recorte, valor ÷ total do mesmo indicador × 100 (`total_do_indicador`); mesma localidade, ano e unidade; nula em raízes e filhos de agrupador. Substitui as proporções da T09 e da T21. Nunca somar participações.
 
 **Decimais** (texto, `COERCE_DECIMAL_TO_STRING = True`)
@@ -249,7 +249,7 @@ projeto-integrador-ii/
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
 │   ├── modelagem.md                   # modelagem de dados (fonte da verdade; transcrição do roteiro com os ADRs)
 │   ├── api/openapi.yaml               # esquema gerado e versionado (diff verificado no CI)
-│   └── adr/                           # 0001 a 0010 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice; 0009: variação do Brasil em recortes; 0010: versões e releases)
+│   └── adr/                           # 0001 a 0011 (0007: modelo e importação; 0008: cálculos no SQL, JIT e índice; 0009: variação do Brasil em recortes; 0010: versões e releases; 0011: população de 2012 a 2023)
 ├── docker-compose.yml · .env.example · .editorconfig · .gitignore · LICENSE · README.md
 ```
 
@@ -269,8 +269,8 @@ Resumo:
 - **Lidas:** T02 (MVI 2012–2025), T03 (homicídio doloso), T04 (latrocínio), T05 (lesão corporal seguida de morte) — T03–T05 em vítimas e ocorrências, T08 (MDIP por corporação e situação), T11 (roubo/furto de veículo), T12 (roubo/furto de celular), T14 (roubo a estabelecimento comercial, residência, transeunte), T15 (roubo a instituição financeira, de carga e total), T21 (homicídio de mulheres e feminicídio).
 - **Só conferência:** T01 (MVI 2024–2025; idêntica a T02), T09 (MVI, MDIP e proporção MDIP/MVI) e a coluna de proporção da T21; as proporções são comparadas à `participacao` calculada.
 - **Ignoradas:** painéis (P), gráficos (G), quadros (Q) e as demais tabelas.
-- **População:** aba `BRASIL_E_UFs` dos dois `.ods` do IBGE, já com totais de regiões e Brasil.
-- **Volume esperado:** 1.980 registros (1.750 lidos + 230 regionais calculados, dos quais 24 nulos) e 66 linhas de população. Contagem diferente é falha da importação.
+- **População:** aba `BRASIL_E_UFs` dos dois `.ods` do IBGE (2024 e 2025), já com totais de regiões e Brasil; de 2012 a 2023, projeções do IBGE, somando os 19 grupos etários com sexo `Ambos`.
+- **Volume esperado:** 1.980 registros (1.750 lidos + 230 regionais calculados, dos quais 24 nulos) e 462 linhas de população. Contagem diferente é falha da importação.
 
 Algoritmo:
 1. Conferir o SHA-256 dos arquivos contra `dados/README.md`; se divergir, abortar.
@@ -351,15 +351,7 @@ Não decida sozinho; pergunte antes de implementar o que depender destes pontos.
 9. ~~Catálogo de fontes~~ — **resolvida (ADR 0005):** `FONTES.slug` e ids fixos 1–5 (ajuste 13).
 10. ~~API sem carga concluída~~ — **resolvida (ADR 0005):** 503, `no-store`, sem ETag (contrato, 7.1).
 11. ~~Método do teste do RNF02~~ — **resolvida (ADR 0005):** pytest `-m desempenho` no CI, carga real, cliente em processo, p95 por recurso (`tests/desempenho/README.md`).
-12. **População de 2012 a 2023** — **decidida, implementação pendente:**
-    - **O quê:** carregar em `POPULACAO` as **Projeções da População do IBGE** de 2012 a 2023, para as 27 UFs, as 5 regiões e o Brasil, com `fonte = ibge-projecoes`. 2024 e 2025 continuam com as **Estimativas** (`ibge-estimativas`, os `.ods` atuais), que são as mesmas usadas pelo FBSP na edição de 2026; nunca troque um ano de fonte.
-    - **Por quê:** com população em todos os anos, a taxa por 100 mil habitantes passa a ser calculada (regra 11), inclusive nas regiões, e a série de MVI de 2012 a 2023 passa a ser conferida contra a `taxa_publicada` no relatório (RF12). A população também fica pronta para a importação de edições anteriores do Anuário.
-    - **Conferência (feita em 30/10/2026):** a população das Projeções coincide exatamente com a população implícita na T02 (valor ÷ taxa publicada × 100 000) nas 33 localidades e em todos os anos de 2012 a 2023; todos os anos entram. A importação deve repetir essa conferência a cada carga (relatório do RF12).
-    - **`taxa.fonte`:** em taxa `calculada`, deve indicar a fonte da linha de `POPULACAO` usada no ano (Projeções em 2012–2023, Estimativas em 2024–2025), e não só `INDICADORES.fonte_taxa`. Em taxa `publicada`, continua sendo `INDICADORES.fonte_taxa`. Isso altera o comportamento do ADR 0005 e precisa constar no ADR novo e no `contrato-api.md`.
-    - **`fonte_taxa` no catálogo:** não muda (`ibge-estimativas` na base de habitantes). Em `/indicadores/` e `/metadados/`, passa a ser documentado como a fonte do denominador nos anos da edição atual; a fonte de cada valor é a `taxa.fonte` do registro.
-    - **Compatibilidade:** na MVI de 2012 a 2023, `taxa.origem` passa de `publicada` a `calculada` e `taxa.fonte` de Estimativas a Projeções, o que corrige a fonte exibida hoje. Nenhum campo, tipo ou casa decimal muda, então a mudança fica na v1 (regra 22) e é registrada no ADR.
-    - **Ao implementar:** ADR próprio; arquivo do IBGE em `dados/brutos/` com hash no manifesto (regra 1); leitor em `leitores/ibge.py`; `processo.py` deixa de exigir um único `.xlsx` e passa a identificar cada arquivo pelo nome; `gravar_populacao` grava a fonte de cada ano, no lugar da constante `FONTE_DA_POPULACAO`; contagem de linhas de população (462: 33 localidades × 14 anos) atualizada em `docs/importacao.md`; o resumo do modelo e o do contrato neste arquivo (`fonte` = `indicador.fonte_taxa`) e `docs/modelagem.md` passam a citar 2012–2025.
-    - **Arquivo:** `projecoes_2024_tab2_grupo_quinquenal.xlsx` (Projeções das Populações, revisão 2024), já em `dados/brutos/`, listado fora do manifesto em `dados/README.md`. Uma aba (`2) POP_GRUPO QUINQUENAL`), anos de 2000 a 2070 nas colunas, a partir da coluna F. O cabeçalho de ano é fórmula, mas tem valor em cache: o leitor confere que os anos são 2000 a 2070 e aborta se não forem. Não há linha de total: a população é a soma dos 19 grupos etários com sexo `Ambos`. Regiões com siglas próprias do IBGE: `NO`, `ND`, `SD`, `SU`, `CO`, que o leitor deve mapear para `N`, `NE`, `SE`, `S`, `CO`.
+12. ~~População de 2012 a 2023~~ — **resolvida (ADR 0011):** projeções do IBGE de 2012 a 2023 e estimativas em 2024 e 2025; `taxa.fonte` calculada vem da linha de `POPULACAO`. A edição de 2024 usa o Censo como denominador, o que a pendência 13 trata.
 13. **Edições anteriores do Anuário** — **decidida, implementação pendente:**
     - **O quê:** importar as planilhas das edições anteriores (hoje `anuario-2025.xlsx` e `anuario-2024.xlsx`, já em `dados/brutos/` e listadas fora do manifesto em `dados/README.md`) para estender as séries dos indicadores do escopo.
     - **Edição dona do ano:** cada (indicador, recorte, unidade, ano) vem, em **todas as localidades**, da **edição mais recente cuja tabela traz esse ano**. A dona nunca é escolhida por localidade: "..." e "-" contam como publicados, e o Brasil e as UFs saem sempre da mesma edição, para o Brasil continuar igual à soma das UFs que informaram (regra 4). O mesmo dado em edição anterior entra só como conferência no relatório, como revisão do FBSP, e nunca substitui o da mais recente. É a regra 8 aplicada entre edições. Resultado: 2024 e 2025 da edição de 2026, 2023 da de 2025 e 2022 da de 2024.
