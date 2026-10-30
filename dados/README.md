@@ -30,6 +30,13 @@ importação, a linha dela passa para a tabela acima no mesmo commit da mudança
 - `anuario-2025.xlsx`: planilha do 19º Anuário Brasileiro de Segurança Pública (FBSP, 2025), com dados de 2023 e 2024 e a série de MVI de 2012 a 2024. Origem: <https://forumseguranca.org.br/wp-content/uploads/2025/09/anuario-2025.xlsx>, acesso em 29/10/2026. SHA-256: `23f187480418d15071272e859e1cc3ebcffc515816353aee91906f8e86660f04`.
 - `anuario-2024.xlsx`: planilha do 18º Anuário Brasileiro de Segurança Pública (FBSP, 2024), publicada no repositório do FBSP como "PLANILHA Anuário Brasileiro de Segurança Pública.xlsx", com dados de 2022 e 2023. Origem: <https://publicacoes.forumseguranca.org.br/handle/123456789/253>, acesso em 29/10/2026. SHA-256: `69121cc6954c2a6ef1c30e13bf3b73d19feb1914f97f5e5bf4dbc47a0d755ab6`.
 
+### Projeções da População do IBGE (ainda não importadas)
+
+Fica fora do manifesto pelo mesmo motivo: é um `.xlsx`, e o importador ainda não tem leitor para
+ele (`CLAUDE.md`, pendência 12).
+
+- `projecoes_2024_tab2_grupo_quinquenal.xlsx`: Projeções das Populações, Revisão 2024 (IBGE), população por sexo e grupo quinquenal de idade, 2000 a 2070, para o Brasil, as 5 regiões (siglas `NO`, `ND`, `SD`, `SU`, `CO`) e as 27 UFs. Não há linha de total: a população é a soma dos 19 grupos etários com sexo `Ambos`. Origem: <https://ftp.ibge.gov.br/Projecao_da_Populacao/Projecao_da_Populacao_2024/projecoes_2024_tab2_grupo_quinquenal.xlsx>, acesso em 30/10/2026. SHA-256: `57f997f1ee003fb1138b1016805d0b5dc452f15073b875ef4e6ab0943023a1bb`.
+
 ## `relatorios/`
 
 Relatórios de validação gerados a cada importação (RF12), em `validacao-<versao>.csv` (um
