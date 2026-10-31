@@ -31,11 +31,16 @@ O painel é uma única página, que consome só a API:
 - **Evolução:** linhas da UF, da sua região e do Brasil, com todos os anos do indicador e os anos revisados pelo FBSP marcados. Com recorte, mostra só a UF ([ADR 0009](docs/adr/0009-variacao-do-brasil-em-recortes.md)).
 - **Comparação entre estados:** barras ordenadas pelo critério escolhido. Clicar em uma barra seleciona a UF.
 - **Mapa:** UFs coloridas em cinco faixas do mesmo critério. Selecione com um clique ou, pelo teclado, com as setas e Enter.
+- **Tema claro e escuro:** segue o sistema até a pessoa escolher pelo botão; a escolha fica salva no navegador.
 - **Dados abertos:** tabelas com os números de cada gráfico, links para baixar em CSV e fontes indicadas em cada bloco.
 
 Com uma região escolhida, o ranking mostra só as UFs dela, com a posição entre as 27, e o mapa esmaece as demais:
 
 ![Painel filtrado pela região Nordeste, com a Bahia selecionada e a série de 2022 a 2025](docs/imagens/painel-filtro-regiao.png)
+
+O tema escuro tem as mesmas informações, com contraste verificado pelo axe-core:
+
+![Painel no tema escuro, com os anos revisados pelo FBSP marcados no gráfico de evolução](docs/imagens/painel-tema-escuro.png)
 
 A página se adapta a telas estreitas:
 
