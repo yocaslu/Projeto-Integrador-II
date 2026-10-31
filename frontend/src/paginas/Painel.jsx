@@ -1,6 +1,6 @@
 // Tela principal: filtros, cartões de taxa, variação e posição, gráfico de evolução e ranking.
 // O mapa (RF06) reaproveita os dados do ranking, sem requisição extra à API.
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import {
   buscarComparacao,
   buscarEstados,
@@ -9,11 +9,14 @@ import {
 } from "../api/cliente.js";
 import CartoesResumo from "../componentes/cartoes/CartoesResumo.jsx";
 import Filtros from "../componentes/filtros/Filtros.jsx";
-import GraficoEvolucao from "../componentes/graficos/GraficoEvolucao.jsx";
-import GraficoRanking from "../componentes/ranking/GraficoRanking.jsx";
-import MapaUfs from "../componentes/mapa/MapaUfs.jsx";
 import useConsulta from "../hooks/useConsulta.js";
 import { achatarIndicadores } from "../utils/indicadores.js";
+
+// Recharts e Leaflet são a maior parte do JavaScript: ficam em arquivos separados, para os filtros
+// e os cartões aparecerem antes.
+const GraficoEvolucao = lazy(() => import("../componentes/graficos/GraficoEvolucao.jsx"));
+const GraficoRanking = lazy(() => import("../componentes/ranking/GraficoRanking.jsx"));
+const MapaUfs = lazy(() => import("../componentes/mapa/MapaUfs.jsx"));
 
 export const FILTROS_INICIAIS = { indicador: "mvi", regiao: "", uf: "SP", ano: null };
 
@@ -37,6 +40,12 @@ function regioesDe(estados) {
   return [...porSigla.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
 
+const CARREGANDO = (
+  <p className="carregando" role="status">
+    Carregando…
+  </p>
+);
+
 function Estado({ consulta, children }) {
   if (consulta.erro) {
     return (
@@ -45,14 +54,8 @@ function Estado({ consulta, children }) {
       </p>
     );
   }
-  if (!consulta.dados) {
-    return (
-      <p className="carregando" role="status">
-        Carregando…
-      </p>
-    );
-  }
-  return children(consulta.dados);
+  if (!consulta.dados) return CARREGANDO;
+  return <Suspense fallback={CARREGANDO}>{children(consulta.dados)}</Suspense>;
 }
 
 export default function Painel() {
