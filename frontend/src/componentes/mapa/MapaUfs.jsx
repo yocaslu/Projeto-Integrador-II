@@ -151,7 +151,7 @@ export default function MapaUfs({ ranking, siglasDaRegiao, regiao, ufSelecionada
       )}
       <Legenda classes={classes} temSemDado={temSemDado} criterio={criterio} />
       <p className="nota">
-        Cores mais escuras indicam valores mais altos; cada cor reúne cerca de um quinto das UFs.
+        A legenda vai do menor para o maior valor; cada cor reúne cerca de um quinto das UFs.
         A UF selecionada tem borda laranja. Clique em uma UF para selecioná-la ou, pelo teclado, use
         as setas e Enter. Os mesmos valores estão no ranking e na sua tabela.
         {siglasDaRegiao && " As UFs fora da região escolhida ficam esmaecidas."}

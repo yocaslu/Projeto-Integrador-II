@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import App from "./App.jsx";
 import {
   comparacaoMvi,
@@ -8,6 +8,35 @@ import {
   rankingMvi,
   simularApi,
 } from "./testes/respostas.js";
+
+function respostas() {
+  simularApi({
+    "/metadados/": metadados,
+    "/estados/": estados,
+    "/comparacao/": comparacaoMvi,
+    "/ranking/": rankingMvi,
+    "/malhas/ufs.json": malha,
+  });
+}
+
+beforeEach(() => {
+  localStorage.clear();
+  delete document.documentElement.dataset.tema;
+});
+
+test("alterna o tema e guarda a escolha", async () => {
+  respostas();
+  render(<App />);
+  await screen.findByRole("heading", { name: "São Paulo em 2025" });
+
+  fireEvent.click(screen.getByRole("button", { name: "Usar tema escuro" }));
+  expect(document.documentElement.dataset.tema).toBe("escuro");
+  expect(localStorage.getItem("tema")).toBe("escuro");
+
+  fireEvent.click(screen.getByRole("button", { name: "Usar tema claro" }));
+  expect(document.documentElement.dataset.tema).toBe("claro");
+  expect(localStorage.getItem("tema")).toBe("claro");
+});
 
 test("exibe o título, as fontes e o link do repositório", async () => {
   simularApi({

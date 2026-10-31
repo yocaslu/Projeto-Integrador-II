@@ -1,9 +1,10 @@
 // Cálculos do mapa coroplético (RF06), separados do Leaflet para serem testados sem DOM.
 
-// Escala sequencial de um só matiz (azuis): a ordem clara → escura é legível em qualquer
-// tipo de daltonismo (RNF01). Cinco classes bastam para 27 UFs.
-export const ESCALA = ["#eff3ff", "#bdd7e7", "#6baed6", "#3182bd", "#08519c"];
-export const COR_SEM_DADO = "#ffffff";
+// Escala sequencial de um só matiz (azuis), legível em qualquer tipo de daltonismo (RNF01). Cinco
+// classes bastam para 27 UFs. Os valores ficam em global.css: no tema claro, quanto mais alto o
+// valor, mais escura a cor; no escuro, mais clara, para se destacar do fundo.
+export const ESCALA = [1, 2, 3, 4, 5].map((classe) => `var(--mapa-classe-${classe})`);
+export const COR_SEM_DADO = "var(--mapa-sem-dado)";
 
 // Classes por quantis: cada cor reúne um número parecido de UFs, o que evita um mapa quase
 // todo de uma cor quando uma ou duas UFs têm taxa muito alta.

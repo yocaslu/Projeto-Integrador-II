@@ -68,6 +68,7 @@ export default function GraficoRanking({ ranking, ufSelecionada, aoSelecionarUf,
               )}
             />
             <Tooltip
+              itemStyle={{ color: CORES.brasil }}
               formatter={(valor) => [formatar(valor), rotulo]}
               labelFormatter={(sigla) => comDado.find((item) => item.sigla === sigla)?.nome}
             />
