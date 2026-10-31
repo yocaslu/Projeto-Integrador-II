@@ -8,7 +8,10 @@ import {
   rankingMvi,
   simularApi,
 } from "../testes/respostas.js";
-import Painel, { aplicarMudanca } from "./Painel.jsx";
+import { aplicarMudanca } from "../utils/filtros.js";
+import Painel from "./Painel.jsx";
+
+beforeEach(() => window.history.replaceState(null, "", "/"));
 
 function respostasPadrao() {
   return {
@@ -90,6 +93,69 @@ test("sem metadados, o ranking mostra o erro em vez de carregar para sempre", as
 
   expect((await screen.findAllByRole("alert")).length).toBeGreaterThan(0);
   expect(screen.queryByText("Carregando…")).not.toBeInTheDocument();
+});
+
+test("lê os filtros da URL e corrige os valores que não existem", async () => {
+  window.history.replaceState(null, "", "/?indicador=feminicidio&uf=XX&ano=1999&criterio=nada");
+  const chamadas = simularApi(respostasPadrao());
+  render(<Painel />);
+
+  await waitFor(() => {
+    expect(chamadas).toContain("/api/v1/comparacao/?uf=SP&indicador=feminicidio");
+    expect(chamadas).toContain("/api/v1/ranking/?indicador=feminicidio&ano=2025");
+  });
+  expect(chamadas.filter((url) => url.includes("XX"))).toEqual([]);
+  expect(window.location.search).toBe("?indicador=feminicidio");
+});
+
+test("guarda na URL os filtros escolhidos, sem os padrões", async () => {
+  simularApi(respostasPadrao());
+  render(<Painel />);
+  await screen.findByRole("heading", { name: "São Paulo em 2025" });
+  expect(window.location.search).toBe("");
+
+  fireEvent.change(screen.getByLabelText("Unidade da federação"), { target: { value: "BA" } });
+  fireEvent.change(screen.getByLabelText("Ano do ranking"), { target: { value: "2023" } });
+  await waitFor(() => expect(window.location.search).toBe("?uf=BA&ano=2023"));
+});
+
+test("o critério do ranking vai para a consulta, e a participação só aparece quando existe", async () => {
+  const chamadas = simularApi(respostasPadrao());
+  render(<Painel />);
+  await screen.findByRole("heading", { name: "São Paulo em 2025" });
+
+  const criterios = within(screen.getByLabelText("Classificar por"));
+  expect(criterios.queryByRole("option", { name: "Participação" })).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Classificar por"), { target: { value: "valor" } });
+  await waitFor(() =>
+    expect(chamadas).toContain("/api/v1/ranking/?indicador=mvi&ano=2025&criterio=valor"),
+  );
+
+  fireEvent.change(screen.getByLabelText("Indicador"), { target: { value: "feminicidio" } });
+  expect(criterios.getByRole("option", { name: "Participação" })).toBeInTheDocument();
+});
+
+test("unidade e recorte só aparecem nos indicadores que os têm", async () => {
+  const comOpcoes = JSON.parse(JSON.stringify(metadados));
+  Object.assign(comOpcoes.indicadores[0].subtipos[0], {
+    unidade_padrao: "vitimas",
+    unidades: ["vitimas", "ocorrencias"],
+    recortes: [{ id: 2, rotulo: "Polícia Militar, em serviço" }],
+  });
+  const chamadas = simularApi({ ...respostasPadrao(), "/metadados/": comOpcoes });
+  render(<Painel />);
+  await screen.findByRole("heading", { name: "São Paulo em 2025" });
+  expect(screen.queryByLabelText("Unidade")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Corporação e situação")).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Indicador"), { target: { value: "feminicidio" } });
+  fireEvent.change(await screen.findByLabelText("Corporação e situação"), { target: { value: "2" } });
+  fireEvent.change(screen.getByLabelText("Unidade"), { target: { value: "ocorrencias" } });
+  await waitFor(() =>
+    expect(chamadas).toContain(
+      "/api/v1/comparacao/?uf=SP&indicador=feminicidio&unidade=ocorrencias&recorte=2",
+    ),
+  );
 });
 
 test("mostra o erro da API sem quebrar a página", async () => {

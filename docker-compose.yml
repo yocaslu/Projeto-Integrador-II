@@ -11,7 +11,8 @@ services:
       # A partir do PostgreSQL 18, a imagem guarda os dados em /var/lib/postgresql/18/docker.
       - pgdata:/var/lib/postgresql
     ports:
-      - "5432:5432"
+      # Só no próprio computador: a senha do ambiente de desenvolvimento é a de exemplo.
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -29,7 +30,7 @@ services:
       - /app/.venv
       - ./dados:/dados
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy

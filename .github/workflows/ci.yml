@@ -11,9 +11,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Os jobs do frontend e de ponta a ponta rodam quando o push ou o PR muda frontend/ ou e2e/, e
-  # sempre em release. Pulados, aparecem como "skipped", o que conta como aprovado nas checagens
-  # obrigatórias.
+  # Os jobs do frontend e de ponta a ponta sempre rodam na main e em release: o verde dela precisa
+  # significar que o painel foi testado naquele commit. Em PR, rodam se frontend/ ou e2e/ mudam;
+  # pulados, aparecem como "skipped", o que conta como aprovado nas checagens obrigatórias.
   mudancas:
     name: Detectar mudanças
     runs-on: ubuntu-latest
@@ -27,8 +27,8 @@ jobs:
         env:
           BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
         run: |
-          # Sem base conhecida (ex.: primeiro push), roda tudo por segurança.
-          if [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+          # Fora de PR (main e release) ou sem base conhecida, roda tudo.
+          if [ "$GITHUB_EVENT_NAME" != "pull_request" ] || [ -z "$BASE" ] || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"
           elif git diff --name-only "$BASE" "$GITHUB_SHA" | grep -qE '^(frontend|e2e)/'; then
             echo "frontend=true" >> "$GITHUB_OUTPUT"

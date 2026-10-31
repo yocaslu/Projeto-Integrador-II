@@ -231,8 +231,12 @@ a {
 .mapa {
   height: 24rem;
   width: 100%;
-  background: var(--cor-fundo-suave);
   border-radius: var(--raio);
+}
+
+/* Mais específico que a regra do Leaflet, cujo CSS é carregado depois, com o mapa. */
+.mapa.leaflet-container {
+  background: var(--cor-fundo-suave);
 }
 
 @media (max-width: 40rem) {
@@ -269,4 +273,20 @@ a {
 .recharts-surface:focus:not(:focus-visible),
 .recharts-wrapper:focus:not(:focus-visible) {
   outline: none;
+}
+
+/* Foco de teclado na UF do mapa: o contorno retangular do navegador não acompanha o desenho. */
+.mapa path:focus-visible {
+  outline: none;
+  stroke: var(--cor-texto);
+  stroke-width: 4px;
+}
+
+.nota ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.nota p {
+  margin: 0;
 }

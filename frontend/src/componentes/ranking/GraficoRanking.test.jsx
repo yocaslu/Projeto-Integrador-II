@@ -20,6 +20,27 @@ test("lista as UFs na ordem do ranking, com as sem dado ao final", () => {
   expect(screen.getByText("Sem dado em 2025: Acre.")).toBeInTheDocument();
 });
 
+test("usa o critério escolhido na tabela, no título e no CSV", () => {
+  const porParticipacao = {
+    ...ranking,
+    criterio: "participacao",
+    results: ranking.results.map((item) => ({
+      ...item,
+      participacao: { referencia: null, valor_pct: item.posicao ? 12.5 : null },
+    })),
+  };
+  render(<GraficoRanking ranking={porParticipacao} ufSelecionada="SP" aoSelecionarUf={() => {}} />);
+
+  expect(
+    screen.getByRole("figure", { name: "Participação no indicador-pai por unidade da federação, 2025" }),
+  ).toBeInTheDocument();
+  expect(screen.getAllByRole("cell", { name: "12,50%", hidden: true })).toHaveLength(2);
+  expect(screen.getByRole("link", { name: /CSV/ })).toHaveAttribute(
+    "href",
+    "/api/v1/ranking/?indicador=mvi&ano=2025&criterio=participacao&formato=csv",
+  );
+});
+
 test("aponta o CSV do mesmo ranking", () => {
   render(<GraficoRanking ranking={ranking} ufSelecionada="SP" aoSelecionarUf={() => {}} />);
 

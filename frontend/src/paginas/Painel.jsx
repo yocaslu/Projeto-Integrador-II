@@ -1,6 +1,6 @@
 // Tela principal: filtros, cartões de taxa, variação e posição, gráfico de evolução e ranking.
 // O mapa (RF06) reaproveita os dados do ranking, sem requisição extra à API.
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   buscarComparacao,
   buscarEstados,
@@ -9,33 +9,32 @@ import {
 } from "../api/cliente.js";
 import CartoesResumo from "../componentes/cartoes/CartoesResumo.jsx";
 import Filtros from "../componentes/filtros/Filtros.jsx";
-import GraficoEvolucao from "../componentes/graficos/GraficoEvolucao.jsx";
-import GraficoRanking from "../componentes/ranking/GraficoRanking.jsx";
-import MapaUfs from "../componentes/mapa/MapaUfs.jsx";
 import useConsulta from "../hooks/useConsulta.js";
+import {
+  aplicarMudanca,
+  buscaDosFiltros,
+  corrigirFiltros,
+  lerFiltrosDaUrl,
+} from "../utils/filtros.js";
 import { achatarIndicadores } from "../utils/indicadores.js";
 
-export const FILTROS_INICIAIS = { indicador: "mvi", regiao: "", uf: "SP", ano: null };
-
-// Região e UF ficam sempre coerentes: escolher uma região fora da UF atual leva à primeira UF
-// dela; escolher (no mapa ou no ranking) uma UF fora da região atual limpa a região.
-export function aplicarMudanca(atuais, mudanca, estados) {
-  const novos = { ...atuais, ...mudanca };
-  const daRegiao = (uf, regiao) =>
-    estados.some((estado) => estado.sigla === uf && estado.regiao.sigla === regiao);
-  if (!novos.regiao || daRegiao(novos.uf, novos.regiao)) return novos;
-  if ("regiao" in mudanca) {
-    const primeira = estados.find((estado) => estado.regiao.sigla === novos.regiao);
-    return { ...novos, uf: primeira?.sigla ?? novos.uf };
-  }
-  return { ...novos, regiao: "" };
-}
+// Recharts e Leaflet são a maior parte do JavaScript: ficam em arquivos separados, para os filtros
+// e os cartões aparecerem antes.
+const GraficoEvolucao = lazy(() => import("../componentes/graficos/GraficoEvolucao.jsx"));
+const GraficoRanking = lazy(() => import("../componentes/ranking/GraficoRanking.jsx"));
+const MapaUfs = lazy(() => import("../componentes/mapa/MapaUfs.jsx"));
 
 // As regiões vêm da própria lista de UFs (cada uma traz a sua), sem outra requisição.
 function regioesDe(estados) {
   const porSigla = new Map(estados.map((estado) => [estado.regiao.sigla, estado.regiao]));
   return [...porSigla.values()].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
 }
+
+const CARREGANDO = (
+  <p className="carregando" role="status">
+    Carregando…
+  </p>
+);
 
 function Estado({ consulta, children }) {
   if (consulta.erro) {
@@ -45,48 +44,74 @@ function Estado({ consulta, children }) {
       </p>
     );
   }
-  if (!consulta.dados) {
-    return (
-      <p className="carregando" role="status">
-        Carregando…
-      </p>
-    );
-  }
-  return children(consulta.dados);
+  if (!consulta.dados) return CARREGANDO;
+  return <Suspense fallback={CARREGANDO}>{children(consulta.dados)}</Suspense>;
 }
 
 export default function Painel() {
-  const [filtros, setFiltros] = useState(FILTROS_INICIAIS);
+  const [escolhidos, setEscolhidos] = useState(() => lerFiltrosDaUrl());
   const metadados = useConsulta((opcoes) => buscarMetadados(opcoes), []);
   const estados = useConsulta((opcoes) => buscarEstados(opcoes), []);
 
   const indicadores = metadados.dados ? achatarIndicadores(metadados.dados.indicadores) : [];
+  const todosEstados = estados.dados ?? [];
+  // As consultas esperam os metadados e as UFs: um link pode trazer valores que não existem mais.
+  const pronto = Boolean(metadados.dados && estados.dados);
+  const filtros = pronto ? corrigirFiltros(escolhidos, indicadores, todosEstados) : escolhidos;
   const indicador = indicadores.find((item) => item.slug === filtros.indicador);
   const anos = indicador?.anos ?? [];
-  // Sem ano escolhido, ou com um ano que o indicador não tem, vale o último ano com dados.
-  const ano = anos.includes(filtros.ano) ? filtros.ano : (anos.at(-1) ?? null);
+  const { ano } = filtros;
+  const ultimoAno = anos.at(-1);
+  const buscaNaUrl = buscaDosFiltros(filtros, ultimoAno);
+
+  useEffect(() => {
+    if (pronto) window.history.replaceState(null, "", `${window.location.pathname}${buscaNaUrl}`);
+  }, [pronto, buscaNaUrl]);
 
   const comparacao = useConsulta(
-    (opcoes) => buscarComparacao({ uf: filtros.uf, indicador: filtros.indicador }, opcoes),
-    [filtros.uf, filtros.indicador],
+    (opcoes) =>
+      buscarComparacao(
+        {
+          uf: filtros.uf,
+          indicador: filtros.indicador,
+          unidade: filtros.unidade,
+          recorte: filtros.recorte,
+        },
+        opcoes,
+      ),
+    [filtros.uf, filtros.indicador, filtros.unidade, filtros.recorte],
+    pronto,
   );
   const ranking = useConsulta(
-    (opcoes) => buscarRanking({ indicador: filtros.indicador, ano }, opcoes),
-    [filtros.indicador, ano],
-    ano !== null,
+    (opcoes) =>
+      buscarRanking(
+        {
+          indicador: filtros.indicador,
+          ano,
+          criterio: filtros.criterio === "taxa" ? null : filtros.criterio,
+          unidade: filtros.unidade,
+          recorte: filtros.recorte,
+        },
+        opcoes,
+      ),
+    [filtros.indicador, ano, filtros.criterio, filtros.unidade, filtros.recorte],
+    pronto && ano !== null,
   );
 
-  const todosEstados = estados.dados ?? [];
   const ufsDaRegiao = filtros.regiao
     ? todosEstados.filter((estado) => estado.regiao.sigla === filtros.regiao)
     : todosEstados;
   const siglasDaRegiao = filtros.regiao ? new Set(ufsDaRegiao.map((uf) => uf.sigla)) : null;
   const nomeDaRegiao = ufsDaRegiao[0]?.regiao.nome;
-  // Sem os metadados o ranking não tem ano para consultar: o erro deles vale também para ele.
-  const consultaRanking = metadados.erro ? metadados : ranking;
+  // Sem os metadados e as UFs, as consultas não saem: o erro deles vale também para os blocos.
+  const erroDeBase = metadados.erro ? metadados : estados.erro ? estados : null;
+  const consultaRanking = erroDeBase ?? ranking;
+  const consultaEvolucao = erroDeBase ?? comparacao;
 
   const mudarFiltros = (mudanca) =>
-    setFiltros((atuais) => aplicarMudanca(atuais, mudanca, todosEstados));
+    setEscolhidos((atuais) =>
+      aplicarMudanca(corrigirFiltros(atuais, indicadores, todosEstados), mudanca, todosEstados),
+    );
   const itemUf = ranking.dados?.results.find((item) => item.localidade.codigo === filtros.uf);
 
   return (
@@ -100,7 +125,7 @@ export default function Painel() {
             regioes={regioesDe(listaEstados)}
             estados={ufsDaRegiao}
             anos={anos}
-            valores={{ ...filtros, ano }}
+            valores={filtros}
             aoMudar={mudarFiltros}
           />
         )}
@@ -112,6 +137,8 @@ export default function Painel() {
           ano={ranking.dados.ano}
           base={ranking.dados.indicador.base_taxa}
           totalUfs={ranking.dados.results.length}
+          criterio={ranking.dados.criterio}
+          unidade={ranking.dados.unidade}
         />
       )}
 
@@ -119,8 +146,8 @@ export default function Painel() {
         <div className="painel__coluna">
           <section className="painel__bloco" aria-labelledby="titulo-evolucao">
             <h3 id="titulo-evolucao">Evolução ao longo dos anos</h3>
-            <Estado consulta={comparacao}>
-              {(dados) => <GraficoEvolucao comparacao={dados} />}
+            <Estado consulta={consultaEvolucao}>
+              {(dados) => <GraficoEvolucao comparacao={dados} unidade={filtros.unidade} />}
             </Estado>
           </section>
 
@@ -150,6 +177,7 @@ export default function Painel() {
           <Estado consulta={consultaRanking}>
             {(dados) => (
               <GraficoRanking
+                unidade={filtros.unidade}
                 ranking={
                   siglasDaRegiao
                     ? {
