@@ -26,11 +26,11 @@ e o Brasil, e a série histórica de MVI desde 2012. Os dados vêm das edições
 
 O painel é uma única página, que consome só a API:
 
-- **Filtros:** indicador, região, UF e ano do ranking.
+- **Filtros:** indicador, região, UF, ano e critério do ranking (taxa, número absoluto ou participação), além de unidade e de corporação e situação do policial nos indicadores que as têm. A seleção fica na URL, então o link pode ser compartilhado.
 - **Cartões da UF:** taxa, variação em relação ao ano anterior, posição entre as UFs e número absoluto, com a situação do dado e as notas.
-- **Evolução:** linhas da UF, da sua região e do Brasil, com todos os anos do indicador.
-- **Comparação entre estados:** barras ordenadas pela taxa. Clicar em uma barra seleciona a UF.
-- **Mapa:** UFs coloridas em cinco faixas de taxa. Clicar em uma UF também a seleciona.
+- **Evolução:** linhas da UF, da sua região e do Brasil, com todos os anos do indicador e os anos revisados pelo FBSP marcados. Com recorte, mostra só a UF ([ADR 0009](docs/adr/0009-variacao-do-brasil-em-recortes.md)).
+- **Comparação entre estados:** barras ordenadas pelo critério escolhido. Clicar em uma barra seleciona a UF.
+- **Mapa:** UFs coloridas em cinco faixas do mesmo critério. Selecione com um clique ou, pelo teclado, com as setas e Enter.
 - **Dados abertos:** tabelas com os números de cada gráfico, links para baixar em CSV e fontes indicadas em cada bloco.
 
 Com uma região escolhida, o ranking mostra só as UFs dela, com a posição entre as 27, e o mapa esmaece as demais:
