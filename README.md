@@ -60,7 +60,8 @@ docker compose exec backend uv run python manage.py importar_anuario
 | Documentação (ReDoc) | <http://localhost:8000/api/v1/redoc/> |
 | Esquema OpenAPI 3 | <http://localhost:8000/api/v1/schema/> |
 
-Antes de importar, a API responde 503 em todos os recursos de dados, e o painel mostra o erro.
+O banco e a API só aceitam conexões do próprio computador; o painel, que repassa as chamadas à API,
+fica acessível na rede local. Antes de importar, a API responde 503 em todos os recursos de dados, e o painel mostra o erro.
 
 ### Importação dos dados
 
@@ -131,8 +132,8 @@ Os testes de ponta a ponta precisam dos dados importados.
 
 O CI (GitHub Actions) roda, no backend, o Ruff, a checagem de migrações pendentes, os testes com
 cobertura, a importação da planilha real, a comparação do `docs/api/openapi.yaml` com o esquema
-gerado e o teste de desempenho. Os testes do frontend e de ponta a ponta rodam quando `frontend/` ou
-`e2e/` mudam e em todo release.
+gerado e o teste de desempenho. Os testes do frontend e de ponta a ponta rodam em todo push na `main`,
+em todo release e nos pull requests que mudam `frontend/` ou `e2e/`.
 
 ## Estrutura
 
