@@ -53,6 +53,60 @@ test("os filtros atualizam os cartões e os gráficos", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Bahia em 2022" })).toBeVisible();
 });
 
+// O link guarda a seleção: reabrir a URL mostra o mesmo painel.
+test("os filtros ficam na URL e podem ser compartilhados", async ({ page }) => {
+  await abrirPainel(page);
+  await page.locator("#filtro-indicador").selectOption("latrocinio");
+  await page.locator("#filtro-uf").selectOption("BA");
+  await page.locator("#filtro-unidade").selectOption("ocorrencias");
+  await page.locator("#filtro-criterio").selectOption("valor");
+  await expect(page).toHaveURL(/indicador=latrocinio/);
+
+  await page.reload();
+  await expect(page.locator("#filtro-indicador")).toHaveValue("latrocinio");
+  await expect(page.locator("#filtro-uf")).toHaveValue("BA");
+  await expect(page.locator("#filtro-unidade")).toHaveValue("ocorrencias");
+  await expect(page.locator("#filtro-criterio")).toHaveValue("valor");
+  await expect(page.getByText("Número de ocorrências")).toBeVisible();
+});
+
+// Link antigo ou digitado à mão não pode levar a erro da API.
+test("valores inexistentes na URL voltam ao padrão", async ({ page }) => {
+  await page.goto("/?indicador=nada&uf=XX&ano=1900&recorte=99");
+  await expect(page.getByRole("heading", { name: "São Paulo em 2025" })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+// RF02: recortes de letalidade; o gráfico fica só com a UF (ADR 0009).
+test("o recorte muda o ranking e deixa só a UF na evolução", async ({ page }) => {
+  await abrirPainel(page);
+  await page.locator("#filtro-indicador").selectOption("morte-intervencao-policial");
+  await page.locator("#filtro-recorte").selectOption({ label: "Polícia Militar, em serviço" });
+  await expect(page.locator("#legenda-evolucao")).toContainText("Polícia Militar, em serviço");
+  await expect(page.locator(".grafico__area--evolucao .recharts-line")).toHaveCount(1);
+  await expect(page.locator("#legenda-ranking")).toContainText("Polícia Militar, em serviço");
+  await page.locator("#filtro-criterio").selectOption("participacao");
+  await expect(page.locator("#legenda-ranking")).toContainText("Participação no total do indicador");
+  const resultado = await new AxeBuilder({ page }).withTags(ETIQUETAS_WCAG).analyze();
+  expect(resultado.violations).toEqual([]);
+});
+
+// RNF01: o mapa funciona pelo teclado, com uma única parada de Tab.
+test("o mapa pode ser usado pelo teclado", async ({ page }) => {
+  await abrirPainel(page);
+  const selecionada = page.locator('.mapa path[tabindex="0"]');
+  await expect(selecionada).toHaveCount(1);
+  await expect(selecionada).toHaveAttribute("aria-label", /^São Paulo: /);
+
+  await selecionada.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator(".mapa path:focus")).toHaveAttribute("aria-label", /^Sergipe: /);
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#filtro-uf")).toHaveValue("SE");
+  await expect(page.locator(".mapa path:focus")).toHaveAttribute("aria-label", /^Sergipe: /);
+  await expect(page.locator('.mapa path[stroke="#b35c00"]')).toHaveAttribute("aria-pressed", "true");
+});
+
 // RF06: o mapa usa os dados do ranking e seleciona a UF clicada.
 test("clicar em uma UF no mapa troca a UF selecionada", async ({ page }) => {
   await abrirPainel(page);

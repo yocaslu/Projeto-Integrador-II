@@ -1,10 +1,18 @@
 // Filtros do painel (RF04): indicador, região, UF e ano. A UF define a série do gráfico de
 // evolução e o destaque no ranking; a região restringe as UFs da lista, do ranking e o destaque
-// do mapa; o ano vale para o ranking e para os cartões.
+// do mapa; o ano e o critério valem para o ranking e para os cartões. Unidade e recorte só
+// aparecem nos indicadores que os têm.
+import { criteriosDe } from "../../utils/filtros.js";
+
+const UNIDADES = { vitimas: "Vítimas", ocorrencias: "Ocorrências" };
 
 const RECUO = "   ";
 
 export default function Filtros({ indicadores, regioes, estados, anos, valores, aoMudar }) {
+  const indicador = indicadores.find((item) => item.slug === valores.indicador);
+  const unidades = indicador?.unidades ?? [];
+  const recortes = indicador?.recortes ?? [];
+
   return (
     <form className="filtros" aria-label="Filtros" onSubmit={(evento) => evento.preventDefault()}>
       <div className="campo">
@@ -12,7 +20,7 @@ export default function Filtros({ indicadores, regioes, estados, anos, valores, 
         <select
           id="filtro-indicador"
           value={valores.indicador}
-          onChange={(evento) => aoMudar({ indicador: evento.target.value, ano: null })}
+          onChange={(evento) => aoMudar({ indicador: evento.target.value })}
         >
           {indicadores.map((indicador) => (
             <option
@@ -73,6 +81,56 @@ export default function Filtros({ indicadores, regioes, estados, anos, valores, 
           ))}
         </select>
       </div>
+
+      <div className="campo">
+        <label htmlFor="filtro-criterio">Classificar por</label>
+        <select
+          id="filtro-criterio"
+          value={valores.criterio}
+          onChange={(evento) => aoMudar({ criterio: evento.target.value })}
+        >
+          {criteriosDe(indicador, valores.recorte).map((criterio) => (
+            <option key={criterio.valor} value={criterio.valor}>
+              {criterio.rotulo}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {unidades.length > 1 && (
+        <div className="campo">
+          <label htmlFor="filtro-unidade">Unidade</label>
+          <select
+            id="filtro-unidade"
+            value={valores.unidade || indicador.unidade_padrao}
+            onChange={(evento) => aoMudar({ unidade: evento.target.value })}
+          >
+            {unidades.map((unidade) => (
+              <option key={unidade} value={unidade}>
+                {UNIDADES[unidade] ?? unidade}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {recortes.length > 0 && (
+        <div className="campo">
+          <label htmlFor="filtro-recorte">Corporação e situação</label>
+          <select
+            id="filtro-recorte"
+            value={valores.recorte}
+            onChange={(evento) => aoMudar({ recorte: evento.target.value })}
+          >
+            <option value="">Total</option>
+            {recortes.map((recorte) => (
+              <option key={recorte.id} value={recorte.id}>
+                {recorte.rotulo}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
     </form>
   );
 }

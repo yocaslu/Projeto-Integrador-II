@@ -7,12 +7,15 @@ import {
   rotuloTaxa,
 } from "../../utils/formatacao.js";
 
+const CRITERIOS = { valor: ", por número absoluto", participacao: ", por participação" };
+const UNIDADES = { vitimas: "Número de vítimas", ocorrencias: "Número de ocorrências" };
+
 const SITUACOES = {
   inexistente: "Fenômeno inexistente",
   nao_disponivel: "Informação não disponível",
 };
 
-export default function CartoesResumo({ item, ano, base, totalUfs }) {
+export default function CartoesResumo({ item, ano, base, totalUfs, criterio = "taxa", unidade }) {
   if (!item) return null;
   const { localidade, valor, taxa, variacao, posicao, situacao, observacao } = item;
 
@@ -31,11 +34,11 @@ export default function CartoesResumo({ item, ano, base, totalUfs }) {
           <dd>{formatarVariacao(variacao?.taxa_pct)}</dd>
         </div>
         <div className="cartao">
-          <dt>Posição entre as UFs</dt>
+          <dt>Posição entre as UFs{CRITERIOS[criterio]}</dt>
           <dd>{posicao ? `${posicao}ª de ${totalUfs}` : "Sem posição"}</dd>
         </div>
         <div className="cartao">
-          <dt>Número absoluto</dt>
+          <dt>{UNIDADES[unidade] ?? "Número absoluto"}</dt>
           <dd>{formatarInteiro(valor)}</dd>
         </div>
       </dl>

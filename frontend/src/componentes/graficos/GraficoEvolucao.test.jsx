@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { converterRegistro } from "../../api/cliente.js";
 import { comparacaoCurta, comparacaoMvi } from "../../testes/respostas.js";
-import GraficoEvolucao, { fontesPorPeriodo, montarLinhas } from "./GraficoEvolucao.jsx";
+import GraficoEvolucao, { fontesPorPeriodo, montarLinhas, revisoesDe } from "./GraficoEvolucao.jsx";
 
 function converter(comparacao) {
   return {
@@ -53,6 +53,35 @@ test("indica a fonte do denominador de cada período da série", () => {
     "A (2022 a 2023); B (2024)",
   );
   expect(fontesPorPeriodo([ponto(2024, null)])).toBe("");
+});
+
+test("lista os anos revisados pelo FBSP, a partir da observação", () => {
+  const comparacao = converter(comparacaoMvi);
+  comparacao.series[0].pontos[1].observacao =
+    "Nota da tabela. Revisão do FBSP: a edição de 2025 do Anuário publicou 740.";
+  expect(revisoesDe(comparacao.series[0].pontos)).toEqual([
+    { ano: 2024, texto: "a edição de 2025 do Anuário publicou 740" },
+  ]);
+
+  render(<GraficoEvolucao comparacao={comparacao} />);
+  expect(screen.getByText(/2024: a edição de 2025 do Anuário publicou 740/)).toBeInTheDocument();
+});
+
+test("com recorte, mostra só a UF e leva o recorte e a unidade ao CSV", () => {
+  const comparacao = {
+    ...converter(comparacaoMvi),
+    recorte: { id: 2, rotulo: "Polícia Militar, em serviço" },
+  };
+  render(<GraficoEvolucao comparacao={comparacao} unidade="vitimas" />);
+
+  expect(
+    screen.getByText(/Polícia Militar, em serviço\), 2023 a 2025: São Paulo$/),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("columnheader", { name: "Brasil", hidden: true })).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /CSV/ })).toHaveAttribute(
+    "href",
+    "/api/v1/comparacao/?uf=SP&indicador=mvi&unidade=vitimas&recorte=2&formato=csv",
+  );
 });
 
 test("avisa quando a região não tem taxa", () => {

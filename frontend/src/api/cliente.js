@@ -24,6 +24,9 @@ export function converterRegistro(registro) {
           taxa_pct: paraNumero(registro.variacao.taxa_pct),
         }
       : null,
+    participacao: registro.participacao
+      ? { ...registro.participacao, valor_pct: paraNumero(registro.participacao.valor_pct) }
+      : null,
   };
 }
 
