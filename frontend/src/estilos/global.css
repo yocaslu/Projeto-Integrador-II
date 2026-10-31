@@ -1,7 +1,9 @@
 /* Tokens de cor. A paleta dos gráficos deve ser segura para daltonismo (RNF01)
    e manter contraste mínimo de 4,5:1 para texto. As cores das séries ficam em
-   src/utils/cores.js, porque o Recharts as recebe por propriedade. */
+   src/utils/cores.js, que aponta para as variáveis --grafico-* abaixo. O tema vem do atributo
+   data-tema, aplicado por public/tema.js antes da primeira pintura. */
 :root {
+  color-scheme: light;
   --cor-fundo: #ffffff;
   --cor-fundo-suave: #f3f5f7;
   --cor-borda: #d5d9de;
@@ -10,6 +12,16 @@
   --cor-destaque: #0b5cad;
   --cor-foco: #b35c00;
   --cor-erro: #a1001b;
+  --grafico-uf: #0b5cad;
+  --grafico-regiao: #b35c00;
+  --grafico-brasil: #1b1f24;
+  --grafico-barra: #6b7480;
+  --mapa-classe-1: #eff3ff;
+  --mapa-classe-2: #bdd7e7;
+  --mapa-classe-3: #6baed6;
+  --mapa-classe-4: #3182bd;
+  --mapa-classe-5: #08519c;
+  --mapa-sem-dado: #ffffff;
   --espaco: 1rem;
   --raio: 6px;
   font-family: system-ui, sans-serif;
@@ -18,8 +30,50 @@
   background: var(--cor-fundo);
 }
 
+:root[data-tema="escuro"] {
+  color-scheme: dark;
+  --cor-fundo: #14181d;
+  --cor-fundo-suave: #1e242b;
+  --cor-borda: #3a424c;
+  --cor-texto: #e6e9ed;
+  --cor-texto-suave: #b0b8c3;
+  --cor-destaque: #7fbcf5;
+  --cor-foco: #f0a04b;
+  --cor-erro: #ff9aa5;
+  --grafico-uf: #7fbcf5;
+  --grafico-regiao: #f0a04b;
+  --grafico-brasil: #e6e9ed;
+  --grafico-barra: #8a94a3;
+  --mapa-classe-1: #1f3b57;
+  --mapa-classe-2: #2b5f8a;
+  --mapa-classe-3: #3f88bf;
+  --mapa-classe-4: #79b5de;
+  --mapa-classe-5: #c6e0f5;
+  --mapa-sem-dado: #14181d;
+}
+
 body {
   margin: 0;
+}
+
+.cabecalho {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem var(--espaco);
+}
+
+.botao-tema {
+  font: inherit;
+  font-size: 0.875rem;
+  min-height: 2.75rem;
+  padding: 0.25rem 0.75rem;
+  border: 1px solid var(--cor-texto-suave);
+  border-radius: var(--raio);
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+  cursor: pointer;
 }
 
 .cabecalho,
@@ -234,9 +288,34 @@ a {
   border-radius: var(--raio);
 }
 
-/* Mais específico que a regra do Leaflet, cujo CSS é carregado depois, com o mapa. */
+/* Mais específicos que as regras do Leaflet, cujo CSS é carregado depois, com o mapa. */
 .mapa.leaflet-container {
   background: var(--cor-fundo-suave);
+}
+
+.mapa.leaflet-container a {
+  color: var(--cor-destaque);
+}
+
+.mapa.leaflet-container .leaflet-control-attribution {
+  background: var(--cor-fundo);
+  color: var(--cor-texto);
+}
+
+.mapa.leaflet-container .leaflet-control-attribution a {
+  text-decoration: underline;
+}
+
+.mapa.leaflet-container .leaflet-bar a {
+  background: var(--cor-fundo);
+  border-color: var(--cor-borda);
+  color: var(--cor-texto);
+}
+
+.leaflet-tooltip {
+  background: var(--cor-fundo);
+  border-color: var(--cor-borda);
+  color: var(--cor-texto);
 }
 
 @media (max-width: 40rem) {
@@ -267,6 +346,28 @@ a {
   width: 1rem;
   height: 1rem;
   border: 1px solid var(--cor-texto);
+}
+
+/* Partes do Recharts com cor fixa, que não recebem as cores do tema por propriedade. */
+.recharts-cartesian-axis-tick-value {
+  fill: var(--cor-texto-suave);
+}
+
+.recharts-cartesian-axis-line,
+.recharts-cartesian-axis-tick-line {
+  stroke: var(--cor-texto-suave);
+}
+
+.recharts-tooltip-cursor {
+  fill: var(--cor-borda);
+  fill-opacity: 0.5;
+}
+
+/* !important: o Recharts define estas cores em style, no próprio elemento. */
+.recharts-default-tooltip {
+  background: var(--cor-fundo) !important;
+  border-color: var(--cor-borda) !important;
+  color: var(--cor-texto);
 }
 
 /* O contorno de foco dos gráficos fica só para a navegação por teclado, não para o clique. */

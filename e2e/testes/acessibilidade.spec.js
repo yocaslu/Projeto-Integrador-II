@@ -53,6 +53,32 @@ test("os filtros atualizam os cartões e os gráficos", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Bahia em 2022" })).toBeVisible();
 });
 
+// RNF01: o contraste também vale no tema escuro.
+test("o tema escuro não tem violações WCAG 2.1 AA e fica salvo", async ({ page }) => {
+  await abrirPainel(page);
+  await page.getByRole("button", { name: "Usar tema escuro" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-tema", "escuro");
+  for (const resumo of await page.getByText("Ver os dados em tabela").all()) {
+    await resumo.click();
+  }
+  const resultado = await new AxeBuilder({ page }).withTags(ETIQUETAS_WCAG).analyze();
+  expect(resultado.violations).toEqual([]);
+
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-tema", "escuro");
+  await expect(page.getByRole("button", { name: "Usar tema claro" })).toBeVisible();
+});
+
+test("sem escolha salva, o tema segue o do sistema", async ({ browser }) => {
+  const contexto = await browser.newContext({ colorScheme: "dark" });
+  const page = await contexto.newPage();
+  await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-tema", "escuro");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-tema", "claro");
+  await contexto.close();
+});
+
 // O link guarda a seleção: reabrir a URL mostra o mesmo painel.
 test("os filtros ficam na URL e podem ser compartilhados", async ({ page }) => {
   await abrirPainel(page);
@@ -104,7 +130,10 @@ test("o mapa pode ser usado pelo teclado", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page.locator("#filtro-uf")).toHaveValue("SE");
   await expect(page.locator(".mapa path:focus")).toHaveAttribute("aria-label", /^Sergipe: /);
-  await expect(page.locator('.mapa path[stroke="#b35c00"]')).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator('.mapa path[aria-pressed="true"]')).toHaveAttribute(
+    "aria-label",
+    /^Sergipe: /,
+  );
 });
 
 // RF06: o mapa usa os dados do ranking e seleciona a UF clicada.
@@ -112,12 +141,12 @@ test("clicar em uma UF no mapa troca a UF selecionada", async ({ page }) => {
   await abrirPainel(page);
   await expect(page.locator("#filtro-uf")).toHaveValue("SP");
 
-  // A UF selecionada é a única com borda laranja.
-  await expect(page.locator('.mapa path[stroke="#b35c00"]')).toHaveCount(1);
-  const outra = page.locator('.mapa path.leaflet-interactive:not([stroke="#b35c00"])').first();
+  // A UF selecionada é a única marcada, com a borda laranja.
+  await expect(page.locator('.mapa path[aria-pressed="true"]')).toHaveCount(1);
+  const outra = page.locator('.mapa path[aria-pressed="false"]').first();
   await outra.click({ force: true });
   await expect(page.locator("#filtro-uf")).not.toHaveValue("SP");
-  await expect(page.locator('.mapa path[stroke="#b35c00"]')).toHaveCount(1);
+  await expect(page.locator('.mapa path[aria-pressed="true"]')).toHaveCount(1);
 });
 
 test("o rodapé indica as fontes dos dados", async ({ page }) => {
