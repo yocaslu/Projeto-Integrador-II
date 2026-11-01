@@ -80,7 +80,7 @@ jobs:
         run: uv run python manage.py makemigrations --check --dry-run
       - name: Testes com cobertura mínima de 75%
         run: uv run pytest
-      - name: Importação da planilha real (1.980 registros, sem divergências)
+      - name: Importação da planilha real (3.498 registros, sem divergências)
         run: uv run pytest -m planilha_real --no-cov
       - name: Esquema OpenAPI versionado em dia
         run: |
