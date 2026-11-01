@@ -18,13 +18,13 @@ Planilhas FBSP e IBGE ──> importar_anuario ──> PostgreSQL 18
 | Banco de dados | PostgreSQL 18 |
 | Backend | Python 3.14, Django 6.1, Django REST Framework, drf-spectacular |
 | Importação | pandas, openpyxl e odfpy |
-| Frontend | React, Recharts e Leaflet (próxima fase) |
-| Testes | pytest (backend), Jest, Playwright e axe-core (próxima fase) |
+| Frontend | React, Vite, Recharts e Leaflet, servidos pelo nginx |
+| Testes | pytest (backend), Jest (frontend), Playwright e axe-core (ponta a ponta e acessibilidade) |
 | Infraestrutura | Proxmox VE, Ubuntu Server, Docker, Traefik e Gunicorn |
-| Integração contínua | GitHub Actions |
+| Integração contínua e versões | GitHub Actions e imagens no GitHub Container Registry |
 
-As versões fixadas estão no `CLAUDE.md` (seção "Stack") e em `backend/pyproject.toml`; mudam só
-com ADR.
+As versões fixadas estão no `CLAUDE.md` (seção "Stack"), em `backend/pyproject.toml` e em
+`frontend/package-lock.json`; as do backend mudam só com ADR.
 
 ## Backend
 
@@ -55,10 +55,33 @@ As apps são organizadas por domínio, e não por camada técnica:
 - **Modelo de dados**: nove entidades, com as restrições no banco (`CHECK` de localidade e de
   situação, chave única `NULLS NOT DISTINCT`). Ver [`modelagem.md`](modelagem.md).
 
+## Frontend
+
+O painel é uma única página (`src/paginas/Painel.jsx`) que só consome a API e não refaz nenhum cálculo.
+
+- **Dados:** `src/api/cliente.js` faz as chamadas e converte os decimais; o hook `useConsulta` cancela
+  a busca anterior quando um filtro muda.
+- **Filtros na URL:** `src/utils/filtros.js` lê e corrige a seleção, para que um link antigo não leve a
+  erro da API.
+- **Carregamento:** gráficos e mapa ficam em arquivos separados (`lazy`), para que filtros e cartões
+  apareçam antes.
+- **Mapa:** usa os dados de `/ranking/`, sem outra requisição, ligados à malha em
+  `public/malhas/ufs.json` pelo código IBGE.
+- **Tema:** claro e escuro por variáveis CSS (`src/estilos/global.css`); `public/tema.js` aplica o tema
+  antes de a página aparecer.
+
 ## Qualidade
 
 O CI roda, no backend: Ruff, checagem de migrações pendentes, testes com cobertura mínima de 75%
 (no PostgreSQL, por causa do `NULLS NOT DISTINCT`), a importação da planilha real, a comparação do
 [`api/openapi.yaml`](api/openapi.yaml) versionado com o esquema gerado e o teste de desempenho do
-RNF02 (p95 < 500 ms; ADR 0005). Os testes do frontend e de ponta a ponta rodam quando `frontend/`
-ou `e2e/` mudam.
+RNF02 (p95 < 500 ms; ADR 0005). Os testes do frontend e de ponta a ponta rodam em todo push na `main`,
+em todo release e nos pull requests que mudam `frontend/` ou `e2e/`.
+
+## Implantação
+
+`release.yml` publica as imagens a cada tag `vX.Y.Z` (ADR 0010), e `infra/compose.prod.yml` as executa
+atrás do Traefik, que cuida de HTTPS, roteamento e cabeçalhos de segurança. O Traefik não guarda
+respostas: o cache é o do navegador e o de intermediários, orientado por `Cache-Control` e `ETag`. A
+primeira implantação ainda não foi executada; o procedimento está no
+[guia de operação](guia-de-operacao.md#produção).

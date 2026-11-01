@@ -4,7 +4,7 @@ Nove entidades: REGIOES, ESTADOS, POPULACAO, FONTES, INDICADORES, RECORTES, RECO
 REGISTROS_ANUAIS (tabela de fatos) e CARGAS (sem relacionamento; versão da carga). A descrição
 completa, com atributos, restrições e decisões, está em [`../modelagem.md`](../modelagem.md).
 
-Diagrama entidade-relacionamento (Figura 3 do roteiro):
+Diagrama entidade-relacionamento (Figura 6 do roteiro):
 
 - `modelo-er.dot`: fonte editável (Graphviz);
 - `modelo-er.png` e `modelo-er.svg`: imagens geradas.
