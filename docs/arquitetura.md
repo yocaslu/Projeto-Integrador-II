@@ -5,13 +5,10 @@ de uma API somente leitura, e o frontend os consome para montar o dashboard. A A
 reutilizável por terceiros, e não um detalhe do dashboard: tem contrato próprio
 ([`contrato-api.md`](contrato-api.md)), versionado na URL (`/api/v1/`).
 
-```text
-Planilhas FBSP e IBGE ──> importar_anuario ──> PostgreSQL 18
-                                                   │
-                                     Django + DRF (/api/v1/)
-                                                   │
-                         Traefik ──> React (Recharts, Leaflet)
-```
+![Fluxo dos dados: planilhas do FBSP e população do IBGE, importação, PostgreSQL, API, Traefik e usuários](imagens/arquitetura.png)
+
+O diagrama é gerado de [`imagens/arquitetura.mmd`](imagens/arquitetura.mmd) com o Mermaid CLI
+(`mmdc -i arquitetura.mmd -o arquitetura.png -s 2`).
 
 | Camada | Tecnologia |
 | --- | --- |
