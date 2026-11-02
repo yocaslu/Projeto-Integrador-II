@@ -2,7 +2,7 @@
 
 Transcrição da seção "Modelagem de dados" do Roteiro, atualizada com os ajustes decididos e
 implementados (ADRs 0002 a 0005 e 0007). **Este arquivo é a fonte da verdade da modelagem**; onde o
-Roteiro diverge dele, vale este arquivo. O diagrama entidade-relacionamento (Figura 3 do Roteiro)
+Roteiro diverge dele, vale este arquivo. O diagrama entidade-relacionamento (Figura 6 do Roteiro)
 está em [`modelagem/`](modelagem/) (`modelo-er.svg`, gerado de `modelo-er.dot`).
 
 Os modelos ficam em `backend/apps/<app>/models.py`; as escolhas fixas (situação, método, unidade),
@@ -12,8 +12,8 @@ em `backend/apps/registros/escolhas.py`. Mudança aqui exige migração no mesmo
 
 ## 1. Visão geral
 
-A partir da planilha do 20º Anuário Brasileiro de Segurança Pública (FBSP, 2026) e das
-estimativas populacionais do IBGE, foram definidas **nove entidades**: REGIOES, ESTADOS,
+A partir das planilhas do Anuário Brasileiro de Segurança Pública (FBSP, 2024, 2025 e 2026) e das
+bases populacionais do IBGE, foram definidas **nove entidades**: REGIOES, ESTADOS,
 POPULACAO, FONTES, INDICADORES, RECORTES, RECORTE_ITENS, REGISTROS_ANUAIS e CARGAS.
 
 REGISTROS_ANUAIS é a **tabela de fatos**: cada registro guarda o valor de um indicador em um ano e
@@ -38,9 +38,9 @@ a `5` e Brasil `1`. Como Brasil e Norte têm o mesmo código, a unicidade em REG
 `codigo_ibge`). A sigla sozinha também é ambígua entre níveis (`SE` = Sergipe ou Sudeste), por
 isso a API identifica uma localidade pelo par (nível, código).
 
-POPULACAO guarda as projeções do IBGE de 2012 a 2023 e as estimativas de 2024 e 2025 (ADR 0011) para estados, regiões e Brasil (33
-localidades × 2 anos), as mesmas adotadas pelo FBSP, usadas no cálculo das taxas por 100 mil
-habitantes.
+POPULACAO guarda as projeções do IBGE de 2012 a 2023 e as estimativas de 2024 e 2025 (ADR 0011) para
+estados, regiões e Brasil (33 localidades × 14 anos), as mesmas adotadas pelo FBSP, usadas no cálculo
+das taxas por 100 mil habitantes.
 
 ## 3. Agregados: Brasil e regiões
 
