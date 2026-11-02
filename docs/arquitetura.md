@@ -5,21 +5,18 @@ de uma API somente leitura, e o frontend os consome para montar o dashboard. A A
 reutilizável por terceiros, e não um detalhe do dashboard: tem contrato próprio
 ([`contrato-api.md`](contrato-api.md)), versionado na URL (`/api/v1/`).
 
-```text
-Planilhas FBSP e IBGE ──> importar_anuario ──> PostgreSQL 18
-                                                   │
-                                     Django + DRF (/api/v1/)
-                                                   │
-                         Traefik ──> React (Recharts, Leaflet)
-```
+![Fluxo dos dados: planilhas do FBSP e população do IBGE, importação, PostgreSQL, API, Traefik e usuários](imagens/arquitetura.png)
+
+O diagrama é gerado de [`imagens/arquitetura.mmd`](imagens/arquitetura.mmd) com o Mermaid CLI
+(`mmdc -i arquitetura.mmd -o arquitetura.png -s 2`).
 
 | Camada | Tecnologia |
 | --- | --- |
 | Banco de dados | PostgreSQL 18 |
 | Backend | Python 3.14, Django 6.1, Django REST Framework, drf-spectacular |
 | Importação | pandas, openpyxl e odfpy |
-| Frontend | React, Recharts e Leaflet (próxima fase) |
-| Testes | pytest (backend), Jest, Playwright e axe-core (próxima fase) |
+| Frontend | React 19, Vite, Recharts e Leaflet, servido pelo Nginx em produção |
+| Testes | pytest (backend), Jest (frontend), Playwright e axe-core (ponta a ponta e acessibilidade) |
 | Infraestrutura | Proxmox VE, Ubuntu Server, Docker, Traefik e Gunicorn |
 | Integração contínua | GitHub Actions |
 
@@ -60,5 +57,41 @@ As apps são organizadas por domínio, e não por camada técnica:
 O CI roda, no backend: Ruff, checagem de migrações pendentes, testes com cobertura mínima de 75%
 (no PostgreSQL, por causa do `NULLS NOT DISTINCT`), a importação da planilha real, a comparação do
 [`api/openapi.yaml`](api/openapi.yaml) versionado com o esquema gerado e o teste de desempenho do
-RNF02 (p95 < 500 ms; ADR 0005). Os testes do frontend e de ponta a ponta rodam quando `frontend/`
-ou `e2e/` mudam.
+RNF02 (p95 < 500 ms; ADR 0005). No frontend, Jest e o build; de ponta a ponta, Playwright com
+axe-core contra o ambiente completo com os dados importados. Esses dois rodam em todo push na
+`main`, em todo release e nos pull requests que mudam `frontend/` ou `e2e/`.
+
+## Frontend
+
+O painel é uma página React que só consome a API: nenhum cálculo de taxa, variação ou ranking é
+refeito no cliente.
+
+| Parte | Responsabilidade |
+| --- | --- |
+| `src/api/` | Cliente da API (`fetch`), com os erros em Problem Details convertidos em mensagens. |
+| `src/paginas/Painel.jsx` | Estado dos filtros (lido e gravado na URL) e montagem dos blocos. |
+| `src/componentes/` | Filtros, cartões, gráfico de evolução (Recharts, `/comparacao/`), ranking (Recharts, `/ranking/`), mapa (Leaflet, `/ranking/` + malha do IBGE), tabelas de dados e rodapé. |
+| `src/hooks/` | `useConsulta` (requisições com cancelamento) e `useTema` (tema claro e escuro). |
+| `src/utils/` | Correção de filtros inválidos, formatação em pt-BR, classes do mapa e paleta. |
+
+- **Carregamento sob demanda:** gráficos e mapa são carregados com `React.lazy`, para a primeira
+  tela aparecer antes.
+- **Mapa sem camada de fundo:** a malha das UFs é um arquivo estático (`public/malhas/ufs.json`),
+  ligado aos dados pelo código do IBGE; não depende de serviço externo a cada visita.
+- **Acessibilidade (RNF01):** paleta distinguível nos tipos comuns de daltonismo, séries que
+  diferem também por traço e marcador, foco visível, mapa operável pelo teclado e tabela com os
+  números de cada gráfico.
+- **Desenvolvimento e produção:** no desenvolvimento, o Vite repassa `/api` ao backend; em
+  produção, o Nginx serve os arquivos estáticos e o Traefik roteia `/api` ao Gunicorn no mesmo
+  domínio, sem CORS.
+
+## Implantação
+
+```text
+Internet ──> Traefik (HTTPS, Let's Encrypt) ──┬── /api ──> backend (Gunicorn + Django) ──> PostgreSQL
+                                              └── /    ──> frontend (Nginx, arquivos do React)
+```
+
+Cada versão (tag `vX.Y.Z`) publica as imagens do backend e do frontend no GitHub Container
+Registry (ADR 0010); a VM usa `infra/compose.prod.yml` com a versão escolhida. Passo a passo em
+[`operacao.md`](operacao.md).

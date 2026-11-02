@@ -355,18 +355,20 @@ reservados. `nivel`, `uf` e `regiao` seguem exatamente a regra da seção 4.7.2.
 
 `ordenar` aceita `ano`, `localidade`, `valor`. Ordem padrão: `localidade` (canônica), `ano`.
 
-Sem `nivel`, `uf` nem `regiao`, a resposta traz só as UFs: 54 linhas (27 UFs × 2 anos). As 66
-linhas (33 localidades × 2 anos) exigem a lista explícita, como no exemplo:
+Sem `nivel`, `uf` nem `regiao`, a resposta traz só as UFs: 378 linhas (27 UFs × 14 anos). As 462
+linhas (33 localidades × 14 anos) exigem a lista explícita, como no exemplo:
 
 `GET /api/v1/populacao/?nivel=pais,regiao,uf`
 ```json
 {
-  "count": 66, "next": null, "previous": null,
+  "count": 462,
+  "next": "http://localhost:8000/api/v1/populacao/?nivel=pais%2Cregiao%2Cuf&pagina=2",
+  "previous": null,
   "results": [
-    {"id": 1, "ano": 2024,
+    {"id": 67, "ano": 2012,
      "localidade": {"nivel": "pais", "codigo": "BR", "codigo_ibge": "1", "nome": "Brasil"},
-     "valor": "212583750",
-     "fonte": {"id": 2, "nome": "IBGE – Estimativas da população residente"}}
+     "valor": "197670620",
+     "fonte": {"id": 3, "nome": "IBGE – Projeções da população"}}
   ]
 }
 ```
@@ -568,7 +570,7 @@ além de `formato=json`.
 ```json
 {
   "carga": {
-    "versao": "…", "concluida_em": "2026-10-27T15:04:05-03:00", "total_registros": 1980,
+    "versao": "…", "concluida_em": "2026-10-27T15:04:05-03:00", "total_registros": 3498,
     "arquivos": [{"nome": "anuario-2026.xlsx", "sha256": "6b01f4ed…"}]
   },
   "anos": {"min": 2012, "max": 2025},

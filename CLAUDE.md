@@ -14,9 +14,9 @@ Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qua
 
 ## Escopo atual
 
-**A fase do backend está concluída**: modelos, importação da planilha, API `/api/v1/` com todos os recursos do contrato (inclusive CSV e cache), esquema OpenAPI e teste de desempenho do RNF02. Mudanças no backend seguem as regras abaixo. **A fase atual é o frontend.**
+**Backend e frontend estão concluídos** (versão 1.4.0): modelos, importação das edições de 2024 a 2026 do Anuário, API `/api/v1/` com todos os recursos do contrato (inclusive CSV e cache), esquema OpenAPI, teste de desempenho do RNF02 e o painel completo. Mudanças seguem as regras abaixo; a documentação de uso fica em `README.md` e em `docs/guia-do-painel.md`, `docs/guia-da-api.md`, `docs/operacao.md` e `docs/desenvolvimento.md`, e é atualizada junto com o comportamento que descreve.
 
-- Feito no frontend: filtros (indicador, região, UF, ano do ranking), cartões da UF (taxa, variação, posição, número absoluto), gráfico de evolução UF × região × Brasil (`/comparacao/`), comparação entre estados em barras (`/ranking/`), tabelas de dados acessíveis e links de CSV; testes Jest e Playwright + axe com o painel carregado.
+- Feito no frontend: filtros (indicador, região, UF, ano, critério do ranking, unidade e recorte, todos na URL), tema claro e escuro, cartões da UF (taxa, variação, posição, número absoluto), gráfico de evolução UF × região × Brasil (`/comparacao/`), comparação entre estados em barras (`/ranking/`), tabelas de dados acessíveis e links de CSV; testes Jest e Playwright + axe com o painel carregado.
 - Mapa por UF (RF06): Leaflet sem camada de fundo, coroplético em 5 classes por quantis, com os dados de `/ranking/` ligados à malha pelo código IBGE (`codarea`). A malha fica em `frontend/public/malhas/ufs.json`, gerada por `npm run malha` a partir da API de malhas do IBGE (`frontend/public/README.md`). No Jest, `react-leaflet` é trocado por `src/testes/reactLeafletFalso.jsx` (`moduleNameMapper`).
 - O frontend só consome a API; nenhum cálculo de taxa, variação ou ranking é refeito no cliente.
 - Ordem de entrega (concluída): `localidades` e `catalogo` → `importacao` (comando + relatório de validação) → `registros` (consultas de taxa, variação, ranking, comparação) → `api` (endpoints, filtros, erros, CSV, cache) → documentação OpenAPI.
@@ -27,7 +27,7 @@ Se o código divergir desses documentos, pare e pergunte antes de "corrigir" qua
   4. `/registros/` (filtros, regra de nível, ordenação, paginação) e `/populacao/`;
   5. `/ranking/` e `/comparacao/`; 6. `/metadados/`;
   7. CSV (negociação, colunas, limite, streaming); 8. cache (ETag, `Vary`, 304); 9. `openapi.yaml`.
-- Requisitos em foco: RF01, RF02, RF05, RF07–RF13, RNF02, RNF05–RNF12. Os de interface (RF03, RF04, RF06, RNF01, RNF03) ficam para a fase do frontend, mas o contrato da API já precisa atendê-los.
+- Todos os requisitos do Roteiro (RF01–RF13, RNF01–RNF13) estão atendidos; a implantação em produção depende da VM (workflow `deploy.yml`, manual).
 
 ---
 
@@ -79,7 +79,7 @@ URLs locais: API em `http://localhost:8000/api/v1/`, Swagger em `/api/v1/docs/`,
 ## Decisões do projeto
 
 ### Stack (versões fixadas — não atualize sem ADR)
-Python 3.14 (série; qualquer 3.14.x, ADR 0006) · Django 6.1.2 · DRF 3.18.3 · django-filter 26.2 · drf-spectacular 0.30.0 · psycopg 3.3.6 · pandas 3.0.6 · openpyxl 3.1.5 · odfpy 1.4.1 · PostgreSQL 18 · uv 0.13.5 (`uv.lock` versionado) · Ruff 0.17.2 · pytest 9.1.1 + pytest-django 4.14.0 + pytest-cov 7.1.0 · Gunicorn 26.2.0 (ADR 0006) · Docker + Traefik em VMs Ubuntu Server 26.04 (Proxmox VE) · GitHub Actions. Frontend (fase seguinte): React, Recharts, Leaflet, Jest, Playwright + axe-core.
+Python 3.14 (série; qualquer 3.14.x, ADR 0006) · Django 6.1.2 · DRF 3.18.3 · django-filter 26.2 · drf-spectacular 0.30.0 · psycopg 3.3.6 · pandas 3.0.6 · openpyxl 3.1.5 · odfpy 1.4.1 · PostgreSQL 18 · uv 0.13.5 (`uv.lock` versionado) · Ruff 0.17.2 · pytest 9.1.1 + pytest-django 4.14.0 + pytest-cov 7.1.0 · Gunicorn 26.2.0 (ADR 0006) · Docker + Traefik em VMs Ubuntu Server 26.04 (Proxmox VE) · GitHub Actions. Frontend: React 19, Vite, Recharts, Leaflet, Jest, Playwright + axe-core.
 
 ### Arquitetura
 - REST (Fielding, 2000): cliente e servidor desacoplados; a API é um produto reutilizável por terceiros, não um detalhe do dashboard.
@@ -246,6 +246,7 @@ projeto-integrador-ii/
 │   └── relatorios/                    # gerados pela importação (fora do Git)
 ├── infra/                             # compose.prod.yml, traefik/
 ├── docs/
+│   ├── guia-do-painel.md · guia-da-api.md · operacao.md · desenvolvimento.md   # documentação de uso
 │   ├── importacao.md                  # mapeamento da planilha e algoritmo de extração
 │   ├── contrato-api.md                # contrato completo da API v1 (fonte da verdade)
 │   ├── modelagem.md                   # modelagem de dados (fonte da verdade; transcrição do roteiro com os ADRs)
@@ -372,7 +373,7 @@ Formato:
 
 - **Descrição**: em português, no imperativo, minúscula, sem ponto final, até 72 caracteres ("adiciona", "corrige", "remove").
 - **Tipos**: `feat` (funcionalidade), `fix` (correção), `refactor` (sem mudar comportamento), `perf`, `test`, `docs`, `build` (dependências, Dockerfile, `uv.lock`), `ci`, `chore` (manutenção, dados), `style` (só formatação), `revert`.
-- **Escopos**: `localidades`, `catalogo`, `registros`, `importacao`, `api`, `dados`, `infra`, `ci`, `docs`, `deps`, `frontend` e `e2e` (fase seguinte).
+- **Escopos**: `localidades`, `catalogo`, `registros`, `importacao`, `api`, `dados`, `infra`, `ci`, `docs`, `deps`, `frontend` e `e2e`.
 - **Quebra de contrato**: `!` após o escopo e rodapé `BREAKING CHANGE:`. Na prática, só para `/api/v2/` (regra 22).
 - Um commit = uma mudança coerente; modelo + migração + teste juntos. Referencie requisitos no rodapé (`Refs: RF12`).
 

@@ -27,4 +27,4 @@ Quando aplicável:
 - [ ] ADR para decisão de arquitetura (`docs/adr/`)
 - [ ] `docs/contrato-api.md`, `docs/importacao.md` e `docs/modelagem.md` atualizados junto com o código
 - [ ] `.env.example` atualizado para variável nova (sem valor real)
-- [ ] Frontend (fase seguinte): `npm test` passando e componentes novos verificados com teclado e leitor de tela
+- [ ] Frontend: `npm test` passando e componentes novos verificados com teclado e leitor de tela

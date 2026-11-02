@@ -1,0 +1,10 @@
+flowchart LR
+  F1["Planilhas do Anuário<br/>FBSP 2024, 2025 e 2026"] --> I
+  F2["População do IBGE<br/>2012 a 2025"] --> I
+  I["importar_anuario<br/>leitura, normalização,<br/>agregação e validação"] -->|grava| DB[("PostgreSQL 18")]
+  I -.-> R["Relatório de<br/>validação"]
+  DB -->|lê| API["API REST /api/v1/<br/>Django + DRF<br/>somente leitura"]
+  API --> T{{"Traefik<br/>HTTPS"}}
+  W["Painel React<br/>Recharts e Leaflet"] --> T
+  T --> U1(["Público<br/>no navegador"])
+  T --> U2(["Pesquisadores e sistemas<br/>JSON, CSV, OpenAPI"])
