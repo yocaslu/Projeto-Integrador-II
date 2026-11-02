@@ -39,7 +39,7 @@ a `5` e Brasil `1`. Como Brasil e Norte têm o mesmo código, a unicidade em REG
 isso a API identifica uma localidade pelo par (nível, código).
 
 POPULACAO guarda as projeções do IBGE de 2012 a 2023 e as estimativas de 2024 e 2025 (ADR 0011) para estados, regiões e Brasil (33
-localidades × 2 anos), as mesmas adotadas pelo FBSP, usadas no cálculo das taxas por 100 mil
+localidades × 14 anos), as mesmas adotadas pelo FBSP, usadas no cálculo das taxas por 100 mil
 habitantes.
 
 ## 3. Agregados: Brasil e regiões
